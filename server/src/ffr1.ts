@@ -1,7 +1,7 @@
 // FFR-1: reduced-order opposed-flow flame spread model.
 // de Ris thin/thick spread rates, corrected for finite-rate chemistry (Damköhler number)
 // and surface radiative loss. Uncertainty from a seeded Monte Carlo over assumed parameters.
-import type { FastResult, Inputs, Residual, Test, Validation } from "../../shared/types";
+import type { FastResult, FlammabilityMap, Inputs, RegimePoint, Residual, Test, Validation } from "../../shared/types";
 import { TESTS } from "./data";
 
 export const VERSION = "0.2.0";
@@ -21,7 +21,7 @@ export function solve(inp: Inputs, pr: Params) {
   const Ub = Math.cbrt((inp.gravity * 9.80665 * alphaG * (Tf - pr.Tinf)) / pr.Tinf);
   const tau = inp.thickness / 2000;
   const dT = Tf - pr.Tv, dS = pr.Tv - pr.Tinf;
-  if (dT <= 0) return { V: 0, Tf, U: Ub, Da: 0, chi: Infinity, regime: "-", outcome: "extinction" as const, cause: "flame temperature below pyrolysis temperature" };
+  if (dT <= 0) return { V: 0, V0: 0, Tf, U: Ub, Da: 0, chi: Infinity, fk: 0, fr: 0, qConv: 0, qRad: 0, regime: "-", outcome: "extinction" as const, cause: "flame temperature below pyrolysis temperature" };
   const Vthin = ((Math.PI / 4) * pr.lamG * dT) / (pr.rhoS * pr.cS * tau * dS);
   const Ugas = Math.cbrt((inp.flow / 100) ** 3 + Ub ** 3);
   const VthickPerU = (rhoG * pr.lamG * pr.cG * dT * dT) / (pr.rhoS * pr.lamS * pr.cS * dS * dS);
@@ -29,13 +29,14 @@ export function solve(inp: Inputs, pr: Params) {
   const Vthick = U * VthickPerU;
   const V0 = Math.hypot(Vthin, Vthick);
   const Da = (alphaG / (U * U)) * pr.A * P * P * Y * Math.exp(-pr.Ta / Tf);
-  const chi = (pr.eps * 5.67e-8 * (pr.Tv ** 4 - pr.Tinf ** 4)) / ((pr.lamG * dT * U) / alphaG);
+  const qRad = pr.eps * 5.67e-8 * (pr.Tv ** 4 - pr.Tinf ** 4), qConv = (pr.lamG * dT * U) / alphaG;
+  const chi = qRad / qConv;
   const fk = Da > 1 ? 1 - 1 / Da : 0;
   const fr = chi < 1 ? 1 - chi : 0;
   let outcome: "sustained spread" | "extinction" = "sustained spread", cause = "";
   if (fk === 0) { outcome = "extinction"; cause = "blowoff: flow too fast for the chemistry (Da ≤ 1)"; }
   else if (fr === 0) { outcome = "extinction"; cause = "radiative quench: heat loss exceeds heat feedback"; }
-  return { V: V0 * fk * fr, Tf, U, Da, chi, regime: Vthin >= Vthick ? "thermally thin" : "thermally thick", outcome, cause };
+  return { V: V0 * fk * fr, V0, Tf, U, Da, chi, fk, fr, qConv, qRad, regime: Vthin >= Vthick ? "thermally thin" : "thermally thick", outcome, cause };
 }
 
 function rng(seed: number) {
@@ -93,8 +94,20 @@ export function runFast(inp: Inputs): FastResult {
     return { flow, spread: solve(q, NOMINAL).V * 1000, p05: bb.p05, p95: bb.p95 };
   });
   const warnings = (Object.keys(RANGES) as (keyof Inputs)[]).filter((k) => inp[k] < RANGES[k][0] || inp[k] > RANGES[k][1]).map((k) => `${k} is outside the documented range ${RANGES[k][0]}–${RANGES[k][1]}; result is exploratory.`);
+  const regimes = Array.from({ length: 60 }, (_, i) => {
+    const flow = 0.3 * Math.pow(100 / 0.3, i / 59), o = solve({ ...inp, flow }, NOMINAL);
+    const limit: RegimePoint["limit"] = o.outcome === "extinction" ? (o.fk === 0 ? "kinetic" : "radiative") : o.fr < 0.9 && 1 - o.fr > 1 - o.fk ? "radiative" : o.fk < 0.9 ? "kinetic" : "thermal";
+    return { flow, spread: o.V * 1000, lossless: o.V0 * 1000, limit };
+  });
   return { model: "FFR-1", version: VERSION, inputs: inp, spread: n.V * 1000, p05: b.p05, p95: b.p95, pExtinction: b.pExt, outcome: n.outcome, cause: n.cause, regime: n.regime,
-    flameTemp: n.Tf, flowEff: n.U * 100, damkohler: n.Da, lossRatio: n.chi, warnings, sweep };
+    flameTemp: n.Tf, flowEff: n.U * 100, damkohler: n.Da, lossRatio: n.chi, heatFeedback: n.qConv / 1000, surfaceLoss: n.qRad / 1000, warnings, sweep, regimes };
+}
+
+/** Nominal spread rate over oxygen 12–32% and opposed flow 0.3–60 cm/s (log), at the other inputs. */
+export function flammabilityMap(inp: Inputs): FlammabilityMap {
+  const flow = Array.from({ length: 80 }, (_, i) => 0.3 * Math.pow(60 / 0.3, (i + 0.5) / 80));
+  const o2 = Array.from({ length: 50 }, (_, j) => 12 + (20 * (j + 0.5)) / 50);
+  return { flow, o2, spread: o2.map((o) => flow.map((f) => solve({ ...inp, o2: o, flow: f }, NOMINAL).V * 1000)) };
 }
 
 function residual(t: Test, b: Params): Residual {

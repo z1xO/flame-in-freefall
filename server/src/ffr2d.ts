@@ -10,12 +10,15 @@ export const VERSION = "0.1.0";
 export const LIMITS = { thickness: [0.05, 0.4], flow: [0, 50] } as const;
 export const SETTINGS = { cp: 1300, kap: 0.5 }; // assumed on physical grounds, not fitted
 
-export interface Progress { progress: number; simTime: number }
+export const GRID = { nx: 80, ny: 24, dx: 0.5 }; // 40 × 12 mm at 0.5 mm
+
+/** Yielded while solving; `frame` and `point` are set when a new snapshot has just been taken. */
+export interface Progress { progress: number; simTime: number; frame?: Frame; point?: FrontPoint }
 
 export function* ffr2d(inp: Inputs): Generator<Progress, DetailedResult, void> {
   const SIG = 5.67e-8;
   const P = inp.pressure / 101.325;
-  const dx = 5e-4, Lx = 0.04, Ly = 0.012;
+  const dx = GRID.dx / 1000, Lx = GRID.nx * dx, Ly = GRID.ny * dx;
   const nx = Math.round(Lx / dx), ny = Math.round(Ly / dx), N = nx * ny;
   const Tinf = 298, cp = SETTINGS.cp, rho = 0.35 * P, alpha = 1.6e-4 / P, lam = alpha * rho * cp;
   const xo = inp.o2 / 100, Yo = (xo * 32) / (xo * 32 + (1 - xo) * 28.01);
@@ -31,6 +34,7 @@ export function* ffr2d(inp: Inputs): Generator<Progress, DetailedResult, void> {
   let T = new Float64Array(N).fill(Tinf), F = new Float64Array(N), O = new Float64Array(N).fill(Yo);
   let T2 = new Float64Array(N), F2 = new Float64Array(N), O2 = new Float64Array(N);
   const Ts = new Float64Array(nx).fill(Tinf), ms = new Float64Array(nx), md = new Float64Array(nx), hrr = new Float64Array(N);
+  const qcIn = new Float64Array(nx), qrOut = new Float64Array(nx);
   for (let i = 0; i < nx; i++) { const x = (i + 0.5) * dx; ms[i] = x >= 0.001 && x <= 0.039 ? ms0 : 0; }
 
   const frames: Frame[] = [], front: FrontPoint[] = [];
@@ -39,8 +43,9 @@ export function* ffr2d(inp: Inputs): Generator<Progress, DetailedResult, void> {
   while (t < tMax) {
     // sheet
     for (let i = 0; i < nx; i++) {
-      if (ms[i] <= 0) { md[i] = 0; Ts[i] = T[i]; continue; }
+      if (ms[i] <= 0) { md[i] = 0; Ts[i] = T[i]; qcIn[i] = qrOut[i] = 0; continue; }
       const qc = (lam * (T[i] - Ts[i])) / (dx / 2), qr = eps * SIG * (Ts[i] ** 4 - Tinf ** 4);
+      qcIn[i] = qc; qrOut[i] = qr;
       const m = ms[i] * As * Math.exp(-Es / Ts[i]);
       Ts[i] += (dt * (qc - qr - m * Lv)) / (Math.max(ms[i], 0.05 * ms0) * cS);
       const dm = Math.min(ms[i], m * dt);
@@ -79,20 +84,35 @@ export function* ffr2d(inp: Inputs): Generator<Progress, DetailedResult, void> {
 
     if (t >= nextFrame) {
       nextFrame += frameDt;
-      let xf = 0, xp = 0, Tmax = 0;
+      let xf = 0, xp = 0, Tmax = 0, heat = 0, rad = 0, toSheet = 0, sheetRad = 0, vap = 0;
       for (let i = 0; i < nx; i++) {
         let cm = 0;
-        for (let j = 0; j < ny; j++) cm = Math.max(cm, T[i + j * nx]);
+        for (let j = 0; j < ny; j++) {
+          const k = i + j * nx;
+          cm = Math.max(cm, T[k]);
+          heat += hrr[k];
+          if (T[k] > 600) rad += 4 * SIG * kap * (T[k] ** 4 - Tinf ** 4);
+        }
         if (cm > 1200) xf = (i + 0.5) * dx * 1000;
         if (md[i] > 1e-4) xp = (i + 0.5) * dx * 1000;
         Tmax = Math.max(Tmax, cm);
+        toSheet += qcIn[i]; sheetRad += qrOut[i]; vap += md[i] * Lv;
       }
-      front.push({ t, xf, xp, Tmax });
-      frames.push({ t, T: Array.from(T, Math.round), H: Array.from(hrr, (v) => Math.round(v / 1e3) / 1e3), Ts: Array.from(Ts, Math.round), m: Array.from(ms, (v) => Math.round((v / ms0) * 1000) / 1000) });
+      const point = { t, xf, xp, Tmax };
+      const frame: Frame = {
+        t,
+        T: Array.from(T, Math.round),
+        H: Array.from(hrr, (v) => Math.round(v / 1e3) / 1e3),
+        O: Array.from(O, (v) => Math.round(v * 1000) / 1000),
+        Ts: Array.from(Ts, Math.round),
+        m: Array.from(ms, (v) => Math.round((v / ms0) * 1000) / 1000),
+        budget: { heatRelease: heat * dx * dx, gasRadiation: rad * dx * dx, toSheet: toSheet * dx, sheetRadiation: sheetRad * dx, vaporizing: vap * dx },
+      };
+      front.push(point); frames.push(frame);
       if (t > tIgn + 1 && Tmax < 1000) { status = "extinction"; break; }
       if (xf > 34) { status = "reached end"; break; }
-    }
-    if (step % 400 === 0) yield { progress: t / tMax, simTime: t };
+      yield { progress: t / tMax, simTime: t, frame, point };
+    } else if (step % 400 === 0) yield { progress: t / tMax, simTime: t };
   }
   if (status === "running") status = "time limit";
 

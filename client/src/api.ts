@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import type { Answer, FastResult, Inputs, Job, Study, Test, Validation } from "../../shared/types";
+import type { Answer, FastResult, FlammabilityMap, Inputs, Job, Study, Test, Validation } from "../../shared/types";
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
@@ -12,8 +11,9 @@ const post = <T,>(url: string, data: unknown) => call<T>(url, { method: "POST", 
 export const api = {
   library: () => call<{ studies: Study[]; tests: Test[] }>("/api/library"),
   fast: (inputs: Inputs) => post<FastResult>("/api/fast", inputs),
+  map: (inputs: Inputs) => post<FlammabilityMap>("/api/map", inputs),
   startDetailed: (inputs: Inputs) => post<Job>("/api/detailed", inputs),
-  job: (id: string) => call<Job>(`/api/detailed/${id}`),
+  job: (id: string, since: number) => call<Job>(`/api/detailed/${id}?since=${since}`),
   cancel: (id: string) => call<Job>(`/api/detailed/${id}`, { method: "DELETE" }),
   validation: () => call<Validation>("/api/validation"),
   ask: (question: string) => post<Answer>("/api/ask", { question }),
@@ -21,41 +21,11 @@ export const api = {
 
 export const inputsOf = (t: Test): Inputs => ({ gravity: t.gravity, o2: t.o2, pressure: t.pressure, flow: t.kind === "limit" ? t.crit! : t.flow, thickness: t.thickness });
 
-/** Fast model result for the given inputs, refreshed shortly after they change. */
-export function useFast(inputs: Inputs | null) {
-  const [result, setResult] = useState<FastResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const key = JSON.stringify(inputs);
-  useEffect(() => {
-    if (!inputs) return;
-    let live = true;
-    const t = setTimeout(() => api.fast(inputs).then((r) => live && (setResult(r), setError(null)), (e) => live && setError(e.message)), 200);
-    return () => { live = false; clearTimeout(t); };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return { result, error };
+export const DETAILED_LIMITS = { thickness: [0.05, 0.4], flow: [0, 50] } as const;
+export function detailedProblem(i: Inputs): string | null {
+  if (i.thickness < DETAILED_LIMITS.thickness[0] || i.thickness > DETAILED_LIMITS.thickness[1]) return "The detailed solver treats the sheet as thin: use 0.05–0.4 mm.";
+  if (i.flow > DETAILED_LIMITS.flow[1]) return "The detailed solver supports opposed flow up to 50 cm/s.";
+  return null;
 }
 
-/** Starts a detailed run and polls it until it finishes. */
-export function useDetailedRun() {
-  const [job, setJob] = useState<Job | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const timer = useRef<number>();
-  const stop = () => window.clearInterval(timer.current);
-  useEffect(() => stop, []);
-  const start = async (inputs: Inputs) => {
-    stop(); setError(null);
-    try {
-      const j = await api.startDetailed(inputs);
-      setJob(j);
-      timer.current = window.setInterval(async () => {
-        try {
-          const next = await api.job(j.id);
-          setJob(next);
-          if (next.status !== "running") stop();
-        } catch (e) { setError((e as Error).message); stop(); }
-      }, 500);
-    } catch (e) { setError((e as Error).message); }
-  };
-  const cancel = async () => { if (job) { stop(); setJob(await api.cancel(job.id)); } };
-  return { job, error, start, cancel, running: job?.status === "running" };
-}
+export const fmt = (v: number | null | undefined, d = 3) => (v == null || !isFinite(v) ? "—" : String(+v.toPrecision(d)));

@@ -39,6 +39,9 @@ export interface Test extends Inputs {
 
 export interface SweepPoint { flow: number; spread: number; p05: number; p95: number }
 
+/** Which loss limits the flame at a given flow: surface radiation, finite-rate chemistry, or neither. */
+export interface RegimePoint { flow: number; spread: number; lossless: number; limit: "radiative" | "kinetic" | "thermal" }
+
 export interface FastResult {
   model: "FFR-1";
   version: string;
@@ -54,18 +57,29 @@ export interface FastResult {
   flowEff: number; // cm/s including buoyancy
   damkohler: number;
   lossRatio: number;
+  heatFeedback: number; // kW/m^2 conducted from flame to fuel
+  surfaceLoss: number; // kW/m^2 re-radiated by the fuel surface
   warnings: string[];
   sweep: SweepPoint[];
+  regimes: RegimePoint[];
 }
 
+/** Fast-model spread rate on an oxygen × flow grid. spread[j][i] is at o2[j], flow[i]; 0 = no sustained spread. */
+export interface FlammabilityMap { flow: number[]; o2: number[]; spread: number[][] }
+
 export interface FrontPoint { t: number; xf: number; xp: number; Tmax: number } // xf, xp in mm
+
+/** Energy flows per metre of sheet width, one face, W/m. */
+export interface Budget { heatRelease: number; gasRadiation: number; toSheet: number; sheetRadiation: number; vaporizing: number }
 
 export interface Frame {
   t: number;
   T: number[]; // gas temperature, K, nx*ny row-major from the sheet upward
   H: number[]; // heat-release rate, MW/m^3
+  O: number[]; // oxygen mass fraction
   Ts: number[]; // sheet surface temperature, K
   m: number[]; // fuel remaining, fraction 0..1
+  budget: Budget;
 }
 
 export interface DetailedResult {
@@ -94,6 +108,11 @@ export interface Job {
   progress: number; // 0..1
   simTime: number;
   inputs: Inputs;
+  grid: { nx: number; ny: number; dx: number };
+  /** While running: frames produced since the `since` index the client asked for, starting at `from`. */
+  frames?: Frame[];
+  from?: number;
+  front?: FrontPoint[];
   result?: DetailedResult;
   error?: string;
 }

@@ -2,7 +2,7 @@
 
 Explore NASA microgravity combustion tests (BASS-II), run a flame-spread model, and compare it with the published results.
 
-- **client/**: React + TypeScript (Vite). Library, Simulate, Compare and Ask pages; Three.js 3D view of the computed flame.
+- **client/**: React + TypeScript (Vite). Library, Simulate, Compare, Physics and Ask pages, plus a guided demo. Three.js 3D view of the computed flame that updates live while the solver runs, with play/pause once it finishes.
 - **server/**: Express + TypeScript. Holds the curated data and runs the physics.
 - **shared/types.ts**: API types used by both.
 
@@ -36,8 +36,9 @@ To serve the built app from the server alone: `npm run build`, then `npm start`,
 |---|---|---|
 | GET | `/api/library` | studies and curated tests |
 | POST | `/api/fast` | `Inputs` → `FastResult` |
+| POST | `/api/map` | `Inputs` → `FlammabilityMap` (spread rate over oxygen × flow) |
 | POST | `/api/detailed` | `Inputs` → `Job` (202) |
-| GET | `/api/detailed/:id` | `Job` with progress, and `result` when done |
+| GET | `/api/detailed/:id?since=n` | `Job` with progress and snapshots from index `n` while running; `result` when done |
 | DELETE | `/api/detailed/:id` | cancel |
 | GET | `/api/validation` | FFR-1 residuals before and after calibration |
 | POST | `/api/ask` | `{ question }` → `Answer` with citations |

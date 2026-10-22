@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Inputs } from "../../shared/types";
 import { STUDIES, TESTS } from "./data";
-import { runFast, validation } from "./ffr1";
+import { flammabilityMap, runFast, validation } from "./ffr1";
 import { LIMITS } from "./ffr2d";
 import { cancelJob, getJob, startJob } from "./jobs";
 import { ask } from "./ask";
@@ -36,6 +36,12 @@ app.post("/api/fast", (req, res) => {
   res.json(runFast(inputs));
 });
 
+app.post("/api/map", (req, res) => {
+  const { inputs, errors } = parseInputs(req.body);
+  if (!inputs) return res.status(400).json({ errors });
+  res.json(flammabilityMap(inputs));
+});
+
 app.post("/api/detailed", (req, res) => {
   const { inputs, errors } = parseInputs(req.body);
   if (!inputs) return res.status(400).json({ errors });
@@ -47,7 +53,7 @@ app.post("/api/detailed", (req, res) => {
 });
 
 app.get("/api/detailed/:id", (req, res) => {
-  const job = getJob(req.params.id);
+  const job = getJob(req.params.id, Number(req.query.since ?? 0) || 0);
   if (!job) return res.status(404).json({ errors: ["Run not found. Runs are kept for 30 minutes."] });
   res.json(job);
 });
