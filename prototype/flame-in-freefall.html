@@ -1,0 +1,1552 @@
+<meta charset="utf-8">
+<title>Flame in Freefall</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky app bar with tabs; each view = heading + panels. Simulate = sticky control rail + viewport + chart grid. */
+:root {
+  --bg: #eef1f6; --panel: #ffffff; --sunk: #e4e9f1; --line: #d0d7e3; --line-strong: #b4bfd1;
+  --fg: #121926; --muted: #566177; --faint: #8390a6;
+  --accent: #1d5bd3; --accent-fg: #ffffff; --accent-soft: #e3ecfd;
+  --sim: #1d5bd3; --obs: #0b8467; --pub: #7646c2; --ill: #b06f08;
+  --bad: #c0352a; --warn: #a66600; --good: #0b8467;
+  --scene: #0a101c; --scene-fg: #c9d4ea;
+  --r: 8px; --gap: 16px;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1019; --panel: #121927; --sunk: #0e1420; --line: #232e43; --line-strong: #34425d;
+  --fg: #e3e9f3; --muted: #9aa6bb; --faint: #6c7990;
+  --accent: #719cff; --accent-fg: #0b1019; --accent-soft: #1a2640;
+  --sim: #719cff; --obs: #3fcaa3; --pub: #b48df3; --ill: #f0aa3a;
+  --bad: #ff6f62; --warn: #f0aa3a; --good: #3fcaa3; --scene: #070b13; --scene-fg: #c9d4ea; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0b1019; --panel: #121927; --sunk: #0e1420; --line: #232e43; --line-strong: #34425d;
+  --fg: #e3e9f3; --muted: #9aa6bb; --faint: #6c7990;
+  --accent: #719cff; --accent-fg: #0b1019; --accent-soft: #1a2640;
+  --sim: #719cff; --obs: #3fcaa3; --pub: #b48df3; --ill: #f0aa3a;
+  --bad: #ff6f62; --warn: #f0aa3a; --good: #3fcaa3; --scene: #070b13; --scene-fg: #c9d4ea; color-scheme: dark }
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 120px; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--panel); }
+h1, h2, h3, h4 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em; text-wrap: balance; margin: 0; line-height: 1.1; }
+h2 { font-size: 28px; } h3 { font-size: 19px; } h4 { font-size: 16px; }
+p { margin: 0; }
+a { color: var(--accent); }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); } .small { font-size: 12.5px; }
+.label { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .09em; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* app bar */
+.appbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--panel); border-bottom: 1px solid var(--line); }
+.appbar .wrap { display: flex; align-items: center; gap: 8px 20px; flex-wrap: wrap; padding-block: 8px 0; }
+.brand { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
+.brand svg { flex: none; }
+.brand h1 { font-size: 24px; }
+.brand .sub { font-size: 12px; color: var(--muted); line-height: 1.2; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; align-self: stretch; align-items: flex-end; margin-right: auto; }
+nav.tabs button { border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none; font-family: var(--f-display); font-size: 17px; font-weight: 600; letter-spacing: .03em; padding: 8px 12px 9px; color: var(--muted); white-space: nowrap; }
+nav.tabs button:hover { color: var(--fg); border-color: var(--line-strong); }
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.bar-right { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; flex-wrap: wrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.demo { border-bottom: 1px solid var(--line); background: var(--sunk); }
+.demo .wrap { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding-block: 8px; }
+.demo ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; counter-reset: s; }
+.demo li button { counter-increment: s; font-size: 12.5px; padding: 4px 10px 4px 6px; border-radius: 999px; }
+.demo li button::before { content: counter(s); font-family: var(--f-mono); font-size: 11px; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--sunk); color: var(--muted); margin-right: 6px; }
+.demo li button.done::before { background: var(--accent); color: var(--accent-fg); }
+
+/* badges */
+.badge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; font-size: 11.5px; padding: 0 7px; border-radius: 3px; border: 1.5px solid currentColor; white-space: nowrap; line-height: 1.6; }
+.badge::before { content: ""; width: 7px; height: 7px; background: currentColor; }
+.b-obs { color: var(--obs); } .b-obs::before { border-radius: 50%; }
+.b-sim { color: var(--sim); } .b-sim::before { transform: rotate(45deg); }
+.b-pub { color: var(--pub); }
+.b-ill { color: var(--ill); border-style: dashed; } .b-ill::before { background: none; border: 1.5px dashed currentColor; }
+.b-warn { color: var(--warn); } .b-bad { color: var(--bad); } .b-good { color: var(--good); }
+.b-plain { color: var(--muted); } .b-plain::before { display: none; }
+
+/* controls */
+button, .btn { font: inherit; font-size: 13.5px; font-weight: 500; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 6px 12px; border-radius: 6px; cursor: pointer; line-height: 1.4; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.ghost { background: transparent; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, select, textarea { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+textarea { font-family: var(--f-mono); font-size: 12px; width: 100%; }
+input[aria-invalid="true"] { border-color: var(--bad); }
+input[type=range] { accent-color: var(--accent); padding: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; padding: 2px; background: var(--sunk); gap: 2px; }
+.seg button { border: none; background: transparent; padding: 5px 10px; border-radius: 5px; font-size: 13px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+
+/* layout */
+main { padding-block: 22px 56px; }
+.view-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 8px 24px; margin-bottom: 16px; }
+.view-head p { color: var(--muted); max-width: 70ch; margin-top: 4px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; }
+.panel-head .desc { width: 100%; color: var(--muted); font-size: 12.5px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.grid-lib { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--gap); }
+.sim { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.rail { position: sticky; top: 112px; max-height: calc(100vh - 128px); overflow-y: auto; }
+.stack { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.spread { justify-content: space-between; }
+@media (max-width: 1020px) { .sim { grid-template-columns: minmax(0, 1fr); } .rail { position: static; max-height: none; } }
+@media (max-width: 860px) { .grid2, .grid-lib { grid-template-columns: minmax(0, 1fr); } }
+
+/* library */
+.result { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; background: var(--panel); text-align: left; width: 100%; }
+.result[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.scorebar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--sunk); width: 140px; }
+.scorebar span:nth-child(1) { background: var(--accent); } .scorebar span:nth-child(2) { background: var(--obs); } .scorebar span:nth-child(3) { background: var(--pub); }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+tr.mismatch td { background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.tablewrap { overflow-x: auto; }
+.missing { color: var(--muted); font-style: italic; }
+
+/* params */
+.param { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding-block: 10px; border-top: 1px solid var(--line); }
+.param > label { font-weight: 600; }
+.param .ctl { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 78px 72px; gap: 6px; align-items: center; }
+.param .meta { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.param .err { grid-column: 1 / -1; font-size: 12.5px; color: var(--bad); }
+.param .flag { grid-column: 1 / -1; font-size: 12.5px; color: var(--warn); }
+.param details { grid-column: 1 / -1; }
+.progress { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.kpi { border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; display: flex; flex-direction: column; gap: 1px; background: var(--panel); }
+.kpi .v { font-family: var(--f-mono); font-size: 21px; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.kpi .u { font-size: 12px; color: var(--muted); }
+
+/* viewport */
+.viewport { position: relative; background: var(--scene); border-radius: var(--r); overflow: hidden; aspect-ratio: 16 / 8.2; max-width: 100%; min-height: 280px; }
+.viewport canvas { display: block; width: 100%; height: 100%; }
+.viewport .ov { position: absolute; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--scene-fg); pointer-events: none; }
+.viewport .ov .badge { background: rgb(7 11 19 / .72); }
+.viewport .tl { top: 10px; left: 10px; right: 120px; } .viewport .bl { bottom: 10px; left: 10px; } .viewport .br { bottom: 10px; right: 10px; }
+.viewport .probe { position: absolute; right: 10px; top: 10px; font-family: var(--f-mono); font-size: 12px; color: #e4e9f2; background: rgb(7 11 19 / .8); padding: 4px 8px; border-radius: 4px; pointer-events: none; max-width: 60%; }
+.ov-sim { color: #8fb1ff; } .ov-ill { color: #f0aa3a; }
+.cbar { width: 180px; height: 10px; border-radius: 2px; }
+.nowebgl { padding: 24px; color: var(--scene-fg); }
+.transport { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.transport input[type=range] { flex: 1 1 200px; }
+
+.chart svg { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font-family: var(--f-mono); font-size: 11px; }
+.chart .axis { stroke: var(--line-strong); }
+.chart .grid { stroke: var(--line); stroke-dasharray: 2 4; }
+.chart .title { fill: var(--fg); }
+canvas.plot { width: 100%; height: auto; display: block; max-width: 100%; }
+.empty { border: 1px dashed var(--line-strong); border-radius: 6px; padding: 20px; color: var(--muted); text-align: center; font-size: 13px; }
+
+.callout { border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); padding: 8px 12px; font-size: 13px; border-radius: 0 4px 4px 0; }
+.callout.info { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.callout.bad { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, transparent); }
+
+/* physics */
+.eq { font-family: var(--f-mono); font-size: 13px; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre; line-height: 1.7; }
+.prose { max-width: 72ch; display: flex; flex-direction: column; gap: 8px; }
+.prose p { line-height: 1.6; }
+
+.answer { display: flex; flex-direction: column; gap: 10px; }
+.answer ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.cite { font-family: var(--f-mono); font-size: 11.5px; color: var(--accent); vertical-align: super; }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 40; max-width: calc(100% - 32px); }
+.tip { position: fixed; pointer-events: none; z-index: 40; background: var(--fg); color: var(--bg); font-family: var(--f-mono); font-size: 12px; padding: 4px 8px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header class="appbar">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="13.5" fill="none" stroke="var(--line-strong)"/><path d="M15 7c3 4 5 6.5 5 9.5a5 5 0 0 1-10 0c0-3 2-5.5 5-9.5z" fill="var(--sim)" fill-opacity=".85"/><path d="M15 13c1.4 1.8 2.2 3 2.2 4.2a2.2 2.2 0 0 1-4.4 0c0-1.2.8-2.4 2.2-4.2z" fill="var(--panel)"/></svg>
+      <div><h1>Flame in Freefall</h1><div class="sub">Microgravity combustion research prototype</div></div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Workspace">
+      <button role="tab" id="tab-library" aria-controls="library" data-tab="library">Library</button>
+      <button role="tab" id="tab-simulate" aria-controls="simulate" data-tab="simulate">Simulate</button>
+      <button role="tab" id="tab-compare" aria-controls="compare" data-tab="compare">Compare</button>
+      <button role="tab" id="tab-physics" aria-controls="physics" data-tab="physics">Physics</button>
+      <button role="tab" id="tab-ask" aria-controls="ask" data-tab="ask">Ask</button>
+    </nav>
+    <div class="bar-right">
+      <div class="legend" aria-label="Provenance legend">
+        <span class="badge b-obs" title="Measured in an experiment, with a source">Observed</span>
+        <span class="badge b-sim" title="Computed by a model in this tool">Simulated</span>
+        <span class="badge b-pub" title="Stated in a NASA record or publication">Published</span>
+        <span class="badge b-ill" title="Drawn, not computed">Illustrative</span>
+      </div>
+      <button class="ghost" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button>
+    </div>
+  </div>
+</header>
+<div class="demo"><div class="wrap">
+  <span class="label">Guided demo</span>
+  <ol id="demo">
+    <li><button data-step="0">Find BASS-II</button></li>
+    <li><button data-step="1">Inspect the evidence</button></li>
+    <li><button data-step="2">Simulate B03 in 2D</button></li>
+    <li><button data-step="3">Lower the flow</button></li>
+    <li><button data-step="4">Compare to the limit</button></li>
+    <li><button data-step="5">See the physics</button></li>
+    <li><button data-step="6">Ask why</button></li>
+  </ol>
+</div></div>
+
+<main class="wrap">
+  <!-- LIBRARY -->
+  <section id="library" role="tabpanel" aria-labelledby="tab-library">
+    <div class="view-head"><div><h2>Research library</h2><p>NASA combustion investigations and the curated test records behind every comparison. Each record links to its source and shows which metadata is missing.</p></div></div>
+    <div class="grid-lib">
+      <div class="panel">
+        <input id="q" type="search" placeholder="Search studies, tests, publications" aria-label="Search">
+        <div class="row small">
+          <label>Material <select id="f-material"><option value="">Any</option><option>PMMA</option></select></label>
+          <label>Gravity <select id="f-gravity"><option value="">Any</option><option value="micro">Microgravity</option><option value="earth">Earth</option></select></label>
+          <label>O₂ ≥ <input id="f-o2" type="number" step="0.5" min="0" max="100" style="width:60px" aria-label="Minimum oxygen percent"> %</label>
+          <label>Sort <select id="f-sort"><option value="score">Ranked score</option><option value="text">Text relevance</option><option value="complete">Completeness</option><option value="title">Title A–Z</option></select></label>
+        </div>
+        <p class="small muted">Ranked score = 50% text relevance + 30% match to the filters + 20% metadata completeness. It helps you find records. It does not rate fire hazard.</p>
+        <div id="results" class="stack" style="gap:8px"></div>
+      </div>
+      <div class="panel" id="detail"></div>
+    </div>
+  </section>
+
+  <!-- SIMULATE -->
+  <section id="simulate" role="tabpanel" aria-labelledby="tab-simulate" hidden>
+    <div class="view-head"><div><h2>Simulate</h2><p>Run the fast reduced-order model for instant answers, or the detailed 2D solver to compute the temperature field, the burning sheet and the spread rate from the governing equations.</p></div></div>
+    <div class="sim">
+      <aside class="panel rail" aria-label="Scenario controls">
+        <div class="stack" style="gap:8px">
+          <span class="label">Model</span>
+          <div class="seg" role="group" aria-label="Model">
+            <button id="m-fast" aria-pressed="true">Fast · FFR-1</button>
+            <button id="m-det" aria-pressed="false">Detailed · FFR-2D</button>
+          </div>
+          <p class="small muted" id="model-desc"></p>
+        </div>
+        <div class="stack" style="gap:6px">
+          <label class="label" for="baseline">Start from a test</label>
+          <select id="baseline"></select>
+        </div>
+        <div>
+          <div class="param" style="border-top:none">
+            <label for="material">Fuel</label><span class="small muted">flat sheet</span>
+            <div class="ctl" style="grid-template-columns: 1fr 1fr">
+              <select id="material"><option value="PMMA">PMMA (cast acrylic)</option><option disabled>Fabric — no model pack</option></select>
+              <select id="flowdir" aria-label="Flow direction"><option value="opposed">Opposed flow</option><option disabled>Concurrent — not modeled</option></select>
+            </div>
+            <div class="meta">Initial temperature 298 K. Ignited at the upstream-opposite end. Suppression agents are not modeled.</div>
+          </div>
+          <div id="params"></div>
+          <div class="param" id="det-settings" hidden>
+            <span style="font-weight:600">Solver assumptions</span><span class="small muted">FFR-2D only</span>
+            <div class="meta">Defaults are chosen on physical grounds, not fitted to BASS-II. Changing them marks the run as non-default.</div>
+            <label class="small" for="s-kap">Gas absorption coefficient κ (m⁻¹ at 1 atm)</label>
+            <div class="ctl"><input type="range" id="s-kap" min="0" max="2" step="0.05"><span class="mono small" id="s-kap-v"></span><span></span></div>
+            <label class="small" for="s-cp">Mean gas heat capacity c<sub>p</sub> (J/kg·K)</label>
+            <div class="ctl"><input type="range" id="s-cp" min="1000" max="1500" step="10"><span class="mono small" id="s-cp-v"></span><span></span></div>
+          </div>
+        </div>
+        <div class="stack" style="gap:8px">
+          <div class="row"><button class="primary" id="run">Run</button><button id="cancel" hidden>Cancel</button><button id="reset">Reset</button></div>
+          <div id="run-status" class="small muted" aria-live="polite"></div>
+          <div class="progress" id="prog" hidden><span></span></div>
+        </div>
+      </aside>
+
+      <div class="stack">
+        <div class="kpis" id="kpis"></div>
+        <div id="run-flags"></div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>3D view</h3>
+            <div class="row small">
+              <div class="seg" role="group" aria-label="Field shown" id="fieldseg">
+                <button data-field="T" aria-pressed="true">Temperature</button>
+                <button data-field="H" aria-pressed="false">Heat release</button>
+              </div>
+            </div>
+          </div>
+          <div class="viewport" id="viewport" role="img" aria-label="3D view of the PMMA sheet and the computed flame">
+            <div class="ov tl" id="ov-tl"></div>
+            <div class="ov bl" id="ov-bl"></div>
+            <div class="ov br" id="ov-br"><canvas class="cbar" id="cbar" width="180" height="10"></canvas><span id="cbar-lab"></span></div>
+            <div class="probe" id="probe" hidden></div>
+          </div>
+          <div class="transport">
+            <button id="play">Play</button>
+            <input id="tslider" type="range" min="0" max="1000" value="500" aria-label="Simulation time">
+            <span id="tlabel" class="mono small"></span>
+          </div>
+          <p class="small" id="scene-text" aria-live="polite"></p>
+          <p class="small muted">Drag to orbit, scroll to zoom, hover the sheet or the center plane to read values. FFR-2D is a 2D solution, extruded across the 20 mm sheet width and mirrored below it because both faces burn.</p>
+        </div>
+        <div class="grid2">
+          <div class="panel">
+            <div class="panel-head"><h3>Gas field</h3><span id="field-badge"></span><p class="desc">Cross-section above the sheet at the current time. Flow enters from the right. Isotherms at 800, 1200, 1600 and 2000 K.</p></div>
+            <div id="field-wrap"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Flame front</h3><span id="front-badge"></span><p class="desc">Leading edge (1200 K) and pyrolysis front position over time. The spread rate is the slope of the fitted segment.</p></div>
+            <div class="chart" id="front"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Sheet surface</h3><p class="desc">Surface temperature and heat fluxes along the sheet at the current time.</p></div>
+            <div class="chart" id="wall"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Flammability map</h3><span class="badge b-sim">FFR-1</span><p class="desc">Fast-model spread rate over oxygen and opposed flow at the current thickness, pressure and gravity. Grey = no sustained spread. Purple bars = BASS-II reported extinction flows.</p></div>
+            <div id="flam-wrap"><canvas class="plot" id="flam" width="640" height="380" aria-label="Flammability map"></canvas></div>
+          </div>
+          <div class="panel" style="grid-column: 1 / -1">
+            <div class="panel-head"><h3>Sensitivity sweep</h3><label class="small">Vary <select id="xvar"><option value="flow">Opposed flow</option><option value="o2">Oxygen</option><option value="pressure">Pressure</option><option value="gravity">Gravity</option><option value="thickness">Thickness</option></select></label><p class="desc">Fast model, nominal line and 90% band, with curated test values that match the other conditions.</p></div>
+            <div class="chart" id="sweep"></div>
+            <details><summary>Show the numbers behind this chart</summary><div class="tablewrap" id="sweep-table"></div></details>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section id="compare" role="tabpanel" aria-labelledby="tab-compare" hidden>
+    <div class="view-head"><div><h2>Compare model and evidence</h2><p>Line up a test and a run, check that their conditions match, and see residuals only where they mean something.</p></div></div>
+    <div class="stack">
+      <div class="panel">
+        <div class="row">
+          <label>Test <select id="cmp-test"></select></label>
+          <label>Run <select id="cmp-run"></select></label>
+          <button id="cmp-match">Run fast model at this test</button>
+          <button id="cmp-match-det">Run detailed model at this test</button>
+        </div>
+        <div id="cmp-out" class="stack" style="gap:12px"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Calibration and validation</h3><span class="badge b-warn">No expert threshold yet</span></div>
+        <div class="grid2">
+          <div class="chart" id="parity-v"></div>
+          <div class="chart" id="parity-c"></div>
+        </div>
+        <div id="val-out" class="stack" style="gap:10px"><p class="muted">Computing residuals…</p></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <h3>Add measured tests</h3>
+          <p class="small muted">Paste curated rows as CSV. Each row needs a source URL and a provenance of <span class="mono">observed</span> or <span class="mono">published</span>.</p>
+          <textarea id="csv" rows="6" aria-label="CSV rows">test_id,study,material,thickness_mm,o2_pct,pressure_kPa,flow_cm_s,gravity_g0,spread_mm_s,spread_unc_mm_s,outcome,provenance,source_url
+</textarea>
+          <div class="row"><button id="csv-import">Import rows</button><span id="csv-msg" class="small"></span></div>
+        </div>
+        <div class="panel">
+          <h3>Saved runs</h3>
+          <div id="runs" class="stack small" style="gap:6px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHYSICS -->
+  <section id="physics" role="tabpanel" aria-labelledby="tab-physics" hidden>
+    <div class="view-head"><div><h2>Fire physics</h2><p>What the two models solve, which numbers they assume, and where the energy goes in the current scenario.</p></div></div>
+    <div class="stack">
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><h3>Energy balance at the flame's leading edge</h3><span class="badge b-sim">FFR-1</span><p class="desc">Heat the flame conducts to the unburnt sheet versus what the sheet re-radiates, and how fast chemistry runs relative to the flow. Current scenario.</p></div>
+          <div class="chart" id="budget-fast"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Energy budget of the computed flame</h3><span class="badge b-sim">FFR-2D</span><p class="desc">Integrated over the domain at the current time, per metre of sheet width, one face.</p></div>
+          <div class="chart" id="budget-det"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Spread regimes</h3><span class="badge b-sim">FFR-1</span><p class="desc">Spread rate versus opposed flow at the current oxygen, pressure, gravity and thickness. Shading shows which loss limits the flame: radiation at low flow, finite-rate chemistry at high flow, neither in the thermal regime between.</p></div>
+        <div class="chart" id="regime"></div>
+      </div>
+      <div class="grid2">
+        <div class="panel prose">
+          <h3>FFR-1 · reduced-order model</h3>
+          <p>Spread over a thin sheet is set by how fast heat conducted forward from the flame raises the fuel to its pyrolysis temperature (de Ris). Thick fuels add the flow, because the gas-phase length scale sets how deep the heat reaches. FFR-1 blends the two and multiplies by two loss factors.</p>
+          <div class="eq">V_thin  = (π/4) · λg (Tf − Tv) / (ρs cs τ (Tv − T∞))
+V_thick = U · (ρ λ c)g (Tf − Tv)² / ((ρ λ c)s (Tv − T∞)²)
+V       = √(V_thin² + V_thick²) · (1 − 1/Da) · (1 − χ)
+
+U  = (U_forced³ + U_buoyant³)^⅓,   U_buoyant = (g αg ΔT / T∞)^⅓
+Da = (αg/U²) · A P² Y_O2 · exp(−Ta/Tf)          blowoff when Da ≤ 1
+χ  = ε σ (Tv⁴ − T∞⁴) / (λg (Tf − Tv) U / αg)     quench when χ ≥ 1
+Tf = T∞ + k_Tf · Y_O2                             k_Tf calibrated on 1 g data</div>
+        </div>
+        <div class="panel prose">
+          <h3>FFR-2D · detailed solver</h3>
+          <p>A transient 2D finite-difference solution of the gas above the sheet, coupled to the sheet itself. Nothing about the spread rate is assumed: the flame ignites, heats the sheet ahead of it, and moves. The front position is tracked and fitted, as in the BASS-II image analysis.</p>
+          <div class="eq">∂T/∂t − U ∂T/∂x = α∇²T + (Q/cp) ω − 4σκ(T⁴ − T∞⁴)/(ρ cp)
+∂Yf/∂t − U ∂Yf/∂x = α∇²Yf − ω
+∂Yo/∂t − U ∂Yo/∂x = α∇²Yo − s ω
+ω = B ρ Yf Yo exp(−Ta/T)                  one-step, second order
+
+Sheet (per face, half-thickness τ):
+m (cs dTs/dt) = λ ∂T/∂y|wall − εσ(Ts⁴ − T∞⁴) − ṁ″ Lv
+ṁ″ = m · As exp(−Es/Ts),    dm/dt = −ṁ″,    fuel enters the gas at ṁ″</div>
+          <p class="small muted">Grid 0.5 mm over 40 × 12 mm, explicit time step about 0.25 ms. Constant density, plug flow, unity Lewis number. Buoyancy enters only as an added plug-flow velocity.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Parameters</h3><p class="desc">Every number the models use, with its status. "Assumed" means chosen from typical literature ranges without fitting.</p></div>
+        <div class="tablewrap" id="ptable"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ASK -->
+  <section id="ask" role="tabpanel" aria-labelledby="tab-ask" hidden>
+    <div class="view-head"><div><h2>Ask the evidence</h2><p>Answers are quoted from the indexed records and model notes, with a citation on each statement. When the sources don't cover a question, the answer says what is missing.</p></div></div>
+    <div class="grid-lib">
+      <div class="panel">
+        <form id="ask-form" class="row">
+          <input id="ask-q" type="text" placeholder="e.g. Why does the flame go out at low flow?" style="flex:1 1 220px" aria-label="Question">
+          <button class="primary" type="submit">Ask</button>
+        </form>
+        <div class="row small" id="ask-suggest"></div>
+      </div>
+      <div class="panel" id="ask-out"><p class="muted">Ask a question to see cited evidence.</p></div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   FFR-2D detailed solver (runs in a Web Worker)
+   ============================================================ */
+function ffr2d(inp, opt, onProgress) {
+  opt = opt || {};
+  const SIG = 5.670e-8;
+  const P = inp.pressure / 101.325;
+  const dx = 5e-4, Lx = 0.04, Ly = 0.012;
+  const nx = Math.round(Lx / dx), ny = Math.round(Ly / dx), N = nx * ny;
+  const Tinf = 298, cp = opt.cp || 1300, rho = 0.35 * P, alpha = 1.6e-4 / P, lam = alpha * rho * cp;
+  const xo = inp.o2 / 100, Yo = xo * 32 / (xo * 32 + (1 - xo) * 28.01);
+  const Q = 25.9e6, s = 1.92, B = opt.B || 5e7, Ta = opt.Ta || 15100, kap = (opt.kap ?? 0.5) * P;
+  const rhoS = 1190, cS = 1466, As = 2.82e9, Es = 15610, Lv = 1.0e6, eps = 0.9;
+  const tau = inp.thickness / 2000, ms0 = rhoS * tau;
+  const Ub = Math.cbrt(inp.gravity * 9.80665 * alpha * 1700 / Tinf);
+  const U = Math.cbrt((inp.flow / 100) ** 3 + Ub ** 3);
+  const dt = Math.min(0.2 * dx * dx / alpha, 0.4 * dx / Math.max(U, 1e-6));
+  const tIgn = 1.5, tMax = opt.tMax || 40, frameDt = 0.2;
+  const xs0 = 0.001, xs1 = 0.039, iIg0 = Math.round(0.002 / dx), iIg1 = Math.round(0.005 / dx);
+  let T = new Float64Array(N).fill(Tinf), F = new Float64Array(N), O = new Float64Array(N).fill(Yo);
+  let T2 = new Float64Array(N), F2 = new Float64Array(N), O2 = new Float64Array(N);
+  const Ts = new Float64Array(nx).fill(Tinf), ms = new Float64Array(nx), md = new Float64Array(nx);
+  const qcIn = new Float64Array(nx), qrOut = new Float64Array(nx), hrr = new Float64Array(N);
+  for (let i = 0; i < nx; i++) { const x = (i + .5) * dx; ms[i] = x >= xs0 && x <= xs1 ? ms0 : 0; }
+  const frames = [], front = [];
+  let t = 0, nextFrame = 0, status = "running", step = 0, lastProg = 0;
+  while (t < tMax) {
+    for (let i = 0; i < nx; i++) {
+      if (ms[i] <= 0) { md[i] = 0; Ts[i] = T[i]; qcIn[i] = 0; qrOut[i] = 0; continue; }
+      const qc = lam * (T[i] - Ts[i]) / (dx / 2), qr = eps * SIG * (Ts[i] ** 4 - Tinf ** 4);
+      const m = ms[i] * As * Math.exp(-Es / Ts[i]);
+      const cap = Math.max(ms[i], 0.05 * ms0) * cS;
+      Ts[i] += dt * (qc - qr - m * Lv) / cap;
+      const dm = Math.min(ms[i], m * dt);
+      ms[i] -= dm; md[i] = dm / dt; qcIn[i] = qc; qrOut[i] = qr;
+      if (ms[i] < 1e-4 * ms0) ms[i] = 0;
+    }
+    const cx = U * dt / dx, cd = alpha * dt / (dx * dx);
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const k = i + j * nx;
+      const tR = i < nx - 1 ? T[k + 1] : Tinf, fR = i < nx - 1 ? F[k + 1] : 0, oR = i < nx - 1 ? O[k + 1] : Yo;
+      const tL = i > 0 ? T[k - 1] : T[k], fL = i > 0 ? F[k - 1] : F[k], oL = i > 0 ? O[k - 1] : O[k];
+      const tU = j < ny - 1 ? T[k + nx] : Tinf, fU = j < ny - 1 ? F[k + nx] : 0, oU = j < ny - 1 ? O[k + nx] : Yo;
+      let tD, fD = F[k], oD = O[k];
+      if (j > 0) { tD = T[k - nx]; fD = F[k - nx]; oD = O[k - nx]; }
+      else tD = ms[i] > 0 ? 2 * Ts[i] - T[k] : T[k];
+      T2[k] = T[k] + cx * (tR - T[k]) + cd * (tR + tL + tU + tD - 4 * T[k]);
+      F2[k] = F[k] + cx * (fR - F[k]) + cd * (fR + fL + fU + fD - 4 * F[k]);
+      O2[k] = O[k] + cx * (oR - O[k]) + cd * (oR + oL + oU + oD - 4 * O[k]);
+    }
+    for (let i = 0; i < nx; i++) F2[i] += md[i] * dt / (rho * dx);
+    let radSum = 0;
+    for (let k = 0; k < N; k++) {
+      let Tk = T2[k];
+      if (Tk > 500 && F2[k] > 1e-7 && O2[k] > 1e-7) {
+        const w = B * rho * F2[k] * O2[k] * Math.exp(-Ta / Tk);
+        const d = Math.min(w * dt, F2[k], O2[k] / s);
+        F2[k] -= d; O2[k] -= s * d; Tk += Q / cp * d; hrr[k] = rho * Q * d / dt;
+      } else hrr[k] = 0;
+      if (Tk > 600) { const q = 4 * SIG * kap * (Tk ** 4 - Tinf ** 4); Tk -= dt * q / (rho * cp); }
+      T2[k] = Tk;
+    }
+    if (t < tIgn) for (let j = 0; j < 4; j++) for (let i = iIg0; i <= iIg1; i++) { const k = i + j * nx; if (T2[k] < 1500) T2[k] = 1500; }
+    [T, T2] = [T2, T]; [F, F2] = [F2, F]; [O, O2] = [O2, O];
+    t += dt; step++;
+    if (t >= nextFrame) {
+      nextFrame += frameDt;
+      let xf = 0, Tmax = 0, hT = 0, rad = 0;
+      for (let i = 0; i < nx; i++) { let cm = 0; for (let j = 0; j < ny; j++) { const k = i + j * nx; cm = Math.max(cm, T[k]); hT += hrr[k]; if (T[k] > 600) rad += 4 * SIG * kap * (T[k] ** 4 - Tinf ** 4); } if (cm > 1200) xf = (i + .5) * dx; Tmax = Math.max(Tmax, cm); }
+      let xp = 0, qcS = 0, qrS = 0, pyS = 0; for (let i = 0; i < nx; i++) { if (md[i] > 1e-4) xp = (i + .5) * dx; qcS += qcIn[i]; qrS += qrOut[i]; pyS += md[i] * Lv; }
+      const A = dx * dx;
+      front.push({ t, xf, xp, Tmax });
+      frames.push({ t, T: Float32Array.from(T), H: Float32Array.from(hrr), Ts: Float32Array.from(Ts), m: Float32Array.from(ms, v => v / ms0), qc: Float32Array.from(qcIn), qr: Float32Array.from(qrOut), md: Float32Array.from(md),
+        budget: { hrr: hT * A, gasRad: rad * A, toSolid: qcS * dx, solidRad: qrS * dx, pyro: pyS * dx } });
+      if (t > tIgn + 1 && Tmax < 1000) { status = "extinction"; break; }
+      if (xf > 0.034) { status = "reached end"; break; }
+    }
+    if (onProgress && t - lastProg > 0.5) { lastProg = t; onProgress(t / tMax, t); }
+  }
+  if (status === "running") status = "time limit";
+  const fit = front.filter(p => p.t > tIgn + 2 && p.xf > 0.008 && p.xf < 0.034);
+  let V = null, r2 = null, b0 = null;
+  if (fit.length >= 5) {
+    const n = fit.length, mt = fit.reduce((a, p) => a + p.t, 0) / n, mx = fit.reduce((a, p) => a + p.xf, 0) / n;
+    let sxy = 0, sxx = 0, syy = 0; fit.forEach(p => { sxy += (p.t - mt) * (p.xf - mx); sxx += (p.t - mt) ** 2; syy += (p.xf - mx) ** 2; });
+    V = sxy / sxx; r2 = syy > 0 ? sxy * sxy / (sxx * syy) : 0; b0 = mx - V * mt;
+  }
+  const outcome = status === "extinction" ? "extinction" : V != null && V > 1e-5 && r2 > 0.8 ? "sustained spread" : "indeterminate";
+  return { nx, ny, dx, Lx, Ly, dt, steps: step, U, Ub, status, outcome, Vmm: V != null ? V * 1000 : null, r2, fit: V != null ? { t0: fit[0].t, t1: fit[fit.length - 1].t, V, b0 } : null, front, frames, tIgn, alpha };
+}
+
+/* ============================================================
+   FFR-1 reduced-order model
+   ============================================================ */
+const MODEL = {
+  id: "FFR-1", version: "0.2.0",
+  desc: "de Ris thin/thick spread rates with Damköhler (blowoff) and surface-radiation (quench) corrections. Flame-temperature coefficient calibrated on one 1 g record. Instant, with a 300-sample uncertainty band.",
+  status: "Calibrated on SDSU-1G-100 only. Not validated."
+};
+const MODEL2D = { id: "FFR-2D", version: "0.1.0",
+  desc: "Transient 2D gas-phase combustion over a burning thin sheet. Computes temperature, fuel, oxygen and heat-release fields; the spread rate emerges from the solution. Thin sheets up to 0.4 mm. Takes 5–20 s.",
+  status: "Not calibrated. Not validated." };
+const DSET0 = { kap: 0.5, cp: 1300 };
+const P0 = 101.325;
+const PRIOR = { lamG: 0.05, rhoG0: 0.40, cG: 1100, Tinf: 298, Tv: 660, rhoS: 1190, cS: 1466, lamS: 0.19, eps: 0.9, kTf: 7600, Ta: 15000, A: 1.23e8 };
+const NOMINAL = { ...PRIOR };
+const KTF_SIG = { prior: 0.05, cal: 0.05 };
+
+function solve(inp, pr) {
+  const P = inp.pressure / P0;
+  const x = inp.o2 / 100;
+  const Y = x * 32 / (x * 32 + (1 - x) * 28.01);
+  const Tf = pr.Tinf + pr.kTf * Y;
+  const rhoG = pr.rhoG0 * P, alphaG = pr.lamG / (rhoG * pr.cG);
+  const Ub = Math.cbrt(inp.gravity * 9.80665 * alphaG * (Tf - pr.Tinf) / pr.Tinf);
+  const Uf = inp.flow / 100;
+  const tau = inp.thickness / 2000;
+  const dT = Tf - pr.Tv, dS = pr.Tv - pr.Tinf;
+  const base = { Tf, Y, Ub, alphaG };
+  if (dT <= 0) return { ...base, U: 0, V: 0, V0: 0, Da: 0, chi: Infinity, qRad: 0, qConv: 0, fk: 0, fr: 0, regime: "-", outcome: "extinction", cause: "flame temperature below pyrolysis temperature" };
+  const Vthin = Math.PI / 4 * pr.lamG * dT / (pr.rhoS * pr.cS * tau * dS);
+  const Ugas = Math.cbrt(Uf ** 3 + Ub ** 3);
+  const VthickPerU = (rhoG * pr.lamG * pr.cG) * dT * dT / (pr.rhoS * pr.lamS * pr.cS * dS * dS);
+  let V0 = Math.hypot(Vthin, Ugas * VthickPerU);
+  const U = Ugas + V0;
+  const Vthick = U * VthickPerU;
+  V0 = Math.hypot(Vthin, Vthick);
+  const regime = Vthin >= Vthick ? "thermally thin" : "thermally thick";
+  const Da = (alphaG / (U * U)) * pr.A * P * P * Y * Math.exp(-pr.Ta / Tf);
+  const qRad = pr.eps * 5.670e-8 * (pr.Tv ** 4 - pr.Tinf ** 4);
+  const qConv = pr.lamG * dT * U / alphaG;
+  const chi = qRad / qConv;
+  const fk = Da > 1 ? 1 - 1 / Da : 0;
+  const fr = chi < 1 ? 1 - chi : 0;
+  const V = V0 * fk * fr;
+  let outcome = "sustained spread", cause = "";
+  if (fk === 0) { outcome = "extinction"; cause = "blowoff: gas residence time too short for chemistry (Da ≤ 1)"; }
+  else if (fr === 0) { outcome = "extinction"; cause = "radiative quench: surface heat loss exceeds flame heat feedback (χ ≥ 1)"; }
+  return { ...base, U, V, V0, Vthin, Vthick, Da, chi, fk, fr, qRad, qConv, regime, outcome, cause };
+}
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r()); }
+function samplePr(r, base = NOMINAL) {
+  const ks = base === PRIOR ? KTF_SIG.prior : KTF_SIG.cal;
+  return { ...base, lamG: base.lamG * (1 + .15 * gauss(r)), Tv: base.Tv + 20 * gauss(r), kTf: base.kTf * (1 + ks * gauss(r)),
+    Ta: base.Ta * (1 + .1 * gauss(r)), A: base.A * Math.exp(.5 * gauss(r)), eps: .8 + .15 * r() };
+}
+function quant(a, q) { const s = [...a].sort((x, y) => x - y); const i = (s.length - 1) * q, lo = Math.floor(i); return s[lo] + (s[Math.min(lo + 1, s.length - 1)] - s[lo]) * (i - lo); }
+function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function runModel(inp, n = 300, base = NOMINAL) {
+  const nom = solve(inp, base);
+  const r = rng(hash(JSON.stringify(inp)));
+  const vs = []; let ext = 0;
+  for (let i = 0; i < n; i++) { const o = solve(inp, samplePr(r, base)); vs.push(o.V * 1000); if (o.outcome !== "sustained spread") ext++; }
+  return { nom, Vmm: nom.V * 1000, p05: quant(vs, .05), p50: quant(vs, .5), p95: quant(vs, .95), pExt: ext / n, n };
+}
+function critFlow(inp, pr) {
+  const ok = f => solve({ ...inp, flow: f }, pr).outcome === "sustained spread";
+  let lo = 0, hi = 50;
+  if (ok(lo)) return 0;
+  if (!ok(hi)) return null;
+  for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; ok(m) ? hi = m : lo = m; }
+  return hi;
+}
+function critFlowBand(inp, base = NOMINAL) {
+  const r = rng(hash("crit" + JSON.stringify(inp))); const v = [];
+  for (let i = 0; i < 150; i++) { const c = critFlow(inp, samplePr(r, base)); if (c != null) v.push(c); }
+  return { nom: critFlow(inp, base), p05: v.length ? quant(v, .05) : null, p95: v.length ? quant(v, .95) : null };
+}
+const UNC = [
+  ["lamG", "Gas conductivity λg", "±15% (1σ)"], ["Tv", "Pyrolysis temperature Tv", "±20 K (1σ)"],
+  ["kTf", "Flame-temperature coefficient", "calibration σ"], ["Ta", "Activation temperature", "±10% (1σ)"],
+  ["A", "Pre-exponential factor", "×/÷ 1.65 (1σ)"], ["eps", "Surface emissivity", "uniform 0.80–0.95"]
+];
+
+/* ============================================================
+   Parameters, records, corpus
+   ============================================================ */
+const PARAMS = [
+  { key: "gravity", label: "Gravity", units: { "g₀": 1, "m/s²": 1 / 9.80665 }, min: 0, max: 1.2, step: 0.001, def: 0, doc: [0, 1], why: "0 = orbital microgravity." },
+  { key: "o2", label: "Oxygen", units: { "% vol": 1 }, min: 5, max: 100, step: 0.1, def: 21, doc: [15, 40], why: "O₂ in an O₂/N₂ mixture." },
+  { key: "pressure", label: "Pressure", units: { kPa: 1, Pa: 0.001 }, min: 5, max: 150, step: 0.1, def: 101.3, doc: [30, 101.3], why: "Ambient total pressure." },
+  { key: "flow", label: "Opposed flow", units: { "cm/s": 1, "m/s": 100 }, min: 0, max: 300, step: 0.1, def: 10, doc: [0, 100], why: "Forced flow against the spread direction." },
+  { key: "thickness", label: "Sheet thickness", units: { mm: 1, "µm": 0.001 }, min: 0.01, max: 50, step: 0.01, def: 0.1, doc: [0.05, 25], why: "Total thickness; both faces burn." }
+];
+const DET_LIMITS = { thickness: [0.05, 0.4], flow: [0, 50] };
+const DEFAULTS = Object.fromEntries(PARAMS.map(p => [p.key, p.def]));
+
+const TM = "https://ntrs.nasa.gov/citations/20210011385";
+const TM_REF = "Olson, Ferkul, Bhattacharjee et al., BASS-II Summary Report, NASA/TM-20210011385 (2021)";
+const STUDIES = [
+  { id: "PSI-25", title: "Burning and Suppression of Solids II (BASS-II)", prov: "pub", url: "https://psi.nasa.gov/physci/repo/data/investigations/PSI-25",
+    summary: "Studies ignition, flame growth and spread, and extinction of solid fuels in microgravity across different flow, oxygen and fuel-geometry conditions. Samples burned in a 76 mm square flow duct inside the ISS Microgravity Science Glovebox, diluted with nitrogen to set the oxygen level.",
+    meta: { platform: "ISS Microgravity Science Glovebox", gravity: "micro", materials: ["PMMA", "cotton-fiberglass fabric"], geometry: "thin flat sheets 100–400 µm (2 cm × ~95 mm), thick slabs, rods, spheres", o2: [14, 21], pressure: [99.2, 99.5], flow: "0–55 cm/s opposed or concurrent", outcome: "ignition, spread, extinction" },
+    files: [{ name: "Investigation record (NASA PSI)", url: "https://psi.nasa.gov/physci/repo/data/investigations/PSI-25", state: "linked, not ingested" },
+            { name: "BASS-II Summary Report, NASA/TM-20210011385", url: TM, state: "curated: §2.2–2.3 thin PMMA values" }] },
+  { id: "TM-2.3-1G", title: "Downward spread over thin PMMA at 1 g (SDSU ground tests)", prov: "pub", url: TM,
+    summary: "Normal-gravity downward-spread tests on 2 cm wide PMMA sheets at San Diego State University, reported in §2.3 of the BASS-II Summary Report as the 1 g counterpart to the ISS thin-sheet tests.",
+    meta: { platform: "Ground laboratory (Flame Stabilizer)", gravity: "earth", materials: ["PMMA"], geometry: "2 cm wide sheets, 75 µm and thicker", o2: [21, 21], pressure: [101, 101], flow: "buoyant only (downward spread)", outcome: "spread" },
+    files: [{ name: "BASS-II Summary Report §2.3", url: TM, state: "curated: 100 µm value" }] },
+  { id: "PSI-62", title: "Combustion modeling compared with BASS/BASS-II", prov: "pub", url: "https://psi.nasa.gov/physci/repo/data/investigations/PSI-62",
+    summary: "A NASA PSI modeling investigation that compares combustion models with BASS and BASS-II research results.",
+    meta: { platform: "Ground modeling", gravity: "micro", materials: ["PMMA"], geometry: null, o2: null, pressure: null, flow: null, outcome: "model–experiment comparison" },
+    files: [{ name: "Investigation record", url: "https://psi.nasa.gov/physci/repo/data/investigations/PSI-62", state: "linked, not ingested" }] }
+];
+const BASE = { material: "PMMA", prov: "pub", source: TM, use: "validation" };
+let TESTS = [
+  { ...BASE, id: "B03-SPREAD", study: "PSI-25", kind: "spread", sample: "BASS-II B03", thickness: 0.1, o2: 20.7, pressure: 99.3, flow: 3, gravity: 0, spread: 2.2, unc: 0.11, outcome: "sustained spread", cite: "§2.3.7, p. 40–41; Fig. 2.19–2.20",
+    note: "The report gives about 2.2 mm/s as the highest microgravity spread rate for 100 µm sheets over opposed flows of about 1–40 cm/s; Fig. 2.19 shows that run at 3 cm/s. The flow value is the curator's reading. Uncertainty is the stated 5% reproducibility. Pressure is the midpoint of 99.2–99.5 kPa." },
+  { ...BASE, id: "B100-CUTOFF", study: "PSI-25", kind: "spread", sample: "BASS-II, 100 µm", thickness: 0.1, o2: 20.7, pressure: 99.3, flow: 0, gravity: 0, spread: null, unc: null, outcome: "extinction", cite: "§2.2.5, p. 23",
+    note: "After steady spread at 2.2 mm/s, the forced flow was cut off abruptly and the flame went out within 2 s." },
+  { ...BASE, id: "XV-21-THIN", study: "PSI-25", kind: "limit", sample: "BASS-II, 100–300 µm", thickness: 0.1, o2: 20.7, pressure: 99.3, flow: 1.0, gravity: 0, crit: 1.0, critUnc: 0.5, outcome: "extinction limit", cite: "§2.2.5, p. 23; Table 2.1, p. 28",
+    note: "Extinction velocity about 1 cm/s for 100, 200 and 300 µm (Table 2.1: 10 ± 5 mm/s at 21% O₂). The report notes large calibration error bars at such low flows." },
+  { ...BASE, id: "XV-21-400", study: "PSI-25", kind: "limit", sample: "BASS-II, 400 µm", thickness: 0.4, o2: 20.7, pressure: 99.3, flow: 1.5, gravity: 0, crit: 1.5, critUnc: 0.5, outcome: "extinction limit", cite: "§2.2.5, p. 23",
+    note: "Extinction velocity about 1.5 cm/s for 400 µm. Uncertainty set equal to Table 2.1's ±5 mm/s by the curator." },
+  { ...BASE, id: "XV-16-100", study: "PSI-25", kind: "limit", sample: "BASS-II, 100 µm, 20 mm wide", thickness: 0.1, o2: 16, pressure: 99.3, flow: 2.6, gravity: 0, crit: 2.6, critUnc: 0.5, outcome: "extinction limit", cite: "§2.2.5, p. 23–25; Table 2.1, p. 28",
+    note: "Extinction velocity about 2.6 cm/s at about 16% O₂ (Table 2.1 aggregate: 30 ± 5 mm/s). The report calls the low-O₂ data insufficient." },
+  { ...BASE, id: "XV-16-200", study: "PSI-25", kind: "limit", sample: "BASS-II, 200 µm, 10 mm wide", thickness: 0.2, o2: 16, pressure: 99.3, flow: 4.0, gravity: 0, crit: 4.0, critUnc: 0.5, outcome: "extinction limit", cite: "§2.2.5, p. 25",
+    note: "Extinction velocity about 4 cm/s at about 16% O₂ on a 10 mm wide sample. Width differs from the 20 mm samples." },
+  { ...BASE, use: "calibration", id: "SDSU-1G-100", study: "TM-2.3-1G", kind: "spread", sample: "SDSU downward, 100 µm", thickness: 0.1, o2: 21, pressure: 101, flow: 0, gravity: 1, spread: 2.0, unc: 0.1, outcome: "sustained spread", cite: "§2.3.7, p. 40",
+    note: "Average downward spread rate at 1 g, 101 kPa, 21% O₂. Uncertainty is the stated 5% reproducibility. Used to calibrate FFR-1 v0.2.0, so agreement with this record is by construction." }
+];
+function calibrate() {
+  const t = TESTS.find(x => x.use === "calibration");
+  const inp = { gravity: t.gravity, o2: t.o2, pressure: t.pressure, flow: t.flow, thickness: t.thickness };
+  const fit = target => { let lo = 4000, hi = 15000; for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; solve(inp, { ...PRIOR, kTf: m }).V * 1000 < target ? lo = m : hi = m; } return (lo + hi) / 2; };
+  const k = fit(t.spread), kLo = fit(t.spread - t.unc), kHi = fit(t.spread + t.unc);
+  return { records: [t.id], prior: PRIOR.kTf, value: k, sigmaRel: (kHi - kLo) / 2 / k,
+    TfAirPrior: solve({ ...inp, gravity: 0, flow: 10 }, PRIOR).Tf, TfAir: solve({ ...inp, gravity: 0, flow: 10 }, { ...PRIOR, kTf: k }).Tf };
+}
+const CAL = calibrate();
+NOMINAL.kTf = CAL.value; KTF_SIG.cal = CAL.sigmaRel;
+
+const CORPUS = [
+  { id: "c1", title: "BASS-II investigation record", url: STUDIES[0].url, prov: "pub", text: "BASS-II studies ignition, flame growth and flame spread, and extinction of solid fuels in microgravity. Conditions varied include flow, oxygen concentration, and fuel geometry." },
+  { id: "c2", title: "BASS/BASS-II modeling investigation", url: STUDIES[2].url, prov: "pub", text: "A NASA PSI modeling investigation compares combustion models with BASS and BASS-II research results." },
+  { id: "c3", title: "Model notes: spread rate", prov: "sim", text: "In opposed flow a flame spreads by conducting heat forward from the flame to unburnt fuel. For thermally thin sheets the de Ris spread rate is independent of flow speed and inversely proportional to thickness. For thermally thick slabs the spread rate is proportional to the opposed flow velocity and to the square of the flame-to-pyrolysis temperature difference." },
+  { id: "c4", title: "Model notes: low-flow extinction", prov: "sim", text: "At low opposed flow the gas-phase length scale grows, so the conductive heat feedback to the fuel surface falls while radiative losses from the gas and the surface stay large. When losses outrun the heat feedback the flame goes out by radiative quench. In microgravity there is no buoyant flow to supply oxygen, so a slow or quiescent flow can extinguish a flame that would burn on Earth." },
+  { id: "c5", title: "Model notes: high-flow extinction", prov: "sim", text: "At high opposed flow the gas residence time becomes shorter than the chemical reaction time. The Damköhler number falls toward one and the flame blows off. Lower pressure or lower oxygen reduce reaction rate and move blowoff to lower flow speeds." },
+  { id: "c6", title: "Model notes: oxygen and pressure", prov: "sim", text: "Oxygen concentration sets the flame temperature. Higher oxygen raises flame temperature, which increases spread rate and widens the range of flow speeds that sustain burning. Lower oxygen narrows that range from both sides." },
+  { id: "c7", title: "Model notes: gravity", prov: "sim", text: "Gravity enters both models only through an estimated buoyant velocity added to the forced flow. Normal gravity supplies roughly 0.2 m/s of induced flow. Neither model resolves plume shape, flame tilt, or concurrent upward spread." },
+  { id: "c15", title: "Model notes: FFR-2D detailed solver", prov: "sim", text: "FFR-2D solves the transient two-dimensional energy, fuel and oxygen equations above a burning PMMA sheet with one-step chemistry and optically thin gas radiation, coupled to the sheet's own energy and pyrolysis equations. The flame spread rate is not an input: it is measured from the computed leading edge, the way the BASS-II images were analyzed. The solver assumes constant density and a uniform plug flow and is not calibrated." },
+  { id: "c14", title: "Model notes: calibration", prov: "sim", text: "FFR-1 version 0.2.0 calibrates one parameter, the flame-temperature coefficient, to a single normal-gravity record: downward spread of 2.0 mm/s over 100 µm PMMA in air. This raised the modeled flame temperature in air by about 300 K. The BASS-II microgravity records were held out as independent validation. FFR-2D is not calibrated." },
+  { id: "c8", title: "Model notes: limitations", prov: "sim", text: "Neither model is validated. FFR-1 is calibrated on one normal-gravity record, and its BASS-II comparisons have no acceptance threshold set by a combustion expert. FFR-2D assumes constant density, uniform plug flow and unity Lewis number, and represents a 3D sheet with a 2D section." },
+  { id: "c9", title: "Product boundaries", prov: "pub", text: "This tool does not certify spacecraft materials or declare them safe or unsafe. Search ranking is for discovery only and is not a measure of hazard." },
+  { id: "c10", title: "Data status", prov: "pub", text: "The curated test values come from the text and Table 2.1 of the BASS-II Summary Report, NASA/TM-20210011385. They are published values, not raw measurements ingested from NASA PSI data files. Only the 1 g record SDSU-1G-100 was used to calibrate FFR-1; the BASS-II records are validation data." },
+  { id: "c11", title: "BASS-II Summary Report §2.2.5: extinction velocity", url: TM, prov: "pub", text: "In BASS-II, a 100 µm PMMA sheet spread steadily at 2.2 mm/s in microgravity. When the forced flow was cut off, the flame went out within 2 s. When the flow was reduced gradually from 3 cm/s, the flame shrank, turned fully blue, and went out at about 1.1 cm/s, which the authors attribute to radiative losses growing with residence time. Extinction velocities were about 1 cm/s for 100, 200 and 300 µm sheets and about 1.5 cm/s for 400 µm, so the extinction velocity does not depend on fuel thickness. At about 16% oxygen the extinction velocity rose to about 2.6 to 4 cm/s." },
+  { id: "c12", title: "BASS-II Summary Report §2.3.7: microgravity versus 1 g", url: TM, prov: "pub", text: "For 100 µm PMMA the highest microgravity spread rate was about 2.2 mm/s while the opposed flow was varied from about 40 cm/s to about 1 cm/s. Blowoff extinction was observed at very high flow and radiative extinction at about 1 cm/s. Downward spread at 1 g over the same thickness averaged 2.0 mm/s, so at 21% oxygen downward spread over thin PMMA can be considered thermally controlled. Spread rate was inversely proportional to fuel thickness, the signature of thermally thin fuel." },
+  { id: "c13", title: "BASS-II Summary Report §2.2.3: apparatus", url: TM, prov: "pub", text: "The BASS-II combustion tunnel is a 76 mm square duct in the ISS Microgravity Science Glovebox. PMMA samples were 20 mm wide, about 95 mm long, and 100 to 400 µm thick, burned in opposed flow of an oxygen-nitrogen mixture. Oxygen could be set at 21% or below and flow from 0 to 50 cm/s. Pressure ranged from 99.2 to 99.5 kPa. Spread rates were found by tracking the flame leading edge in top-view photographs taken once per second, reproducible within 5%." }
+];
+
+/* ============================================================
+   State, utilities
+   ============================================================ */
+const S = { tab: "library", study: "PSI-25", model: "fast", inputs: { ...DEFAULTS }, units: Object.fromEntries(PARAMS.map(p => [p.key, Object.keys(p.units)[0]])), dset: { ...DSET0 },
+  baseline: null, run: null, fastRun: null, detRun: null, runs: [], frames: {}, xvar: "flow", t: 0.5, field: "T", worker: null, cmpRun: null };
+function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+S.runs = load("fif.runs2", []);
+TESTS = TESTS.concat(load("fif.tests", []).filter(t => t.imported && !TESTS.some(x => x.id === t.id)));
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (v, d = 3) => v == null || !isFinite(v) ? "—" : Math.abs(v) < 1e-9 ? "0" : (Math.abs(v) >= 1e5 || Math.abs(v) < 1e-3 ? v.toExponential(2) : Math.abs(v) >= 1000 ? Math.round(v).toString() : String(+(+v).toPrecision(d)));
+const BADGE = { obs: '<span class="badge b-obs">Observed</span>', sim: '<span class="badge b-sim">Simulated</span>', pub: '<span class="badge b-pub">Published</span>', ill: '<span class="badge b-ill">Illustrative</span>' };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function toast(msg) { document.querySelectorAll(".toast").forEach(x => x.remove()); const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.append(t); setTimeout(() => t.remove(), 2600); }
+const INF = [[0.000218, 0.001651, -0.019481], [0.106513, 0.563956, 3.932712], [11.602493, -3.972854, -15.942394], [-41.703996, 17.436399, 44.354145], [77.162936, -33.402359, -81.807309], [-71.319428, 32.626064, 73.20952], [25.131126, -12.242669, -23.070325]];
+function inferno(t) { t = Math.min(1, Math.max(0, t)); const c = [0, 1, 2].map(ch => { let v = INF[6][ch]; for (let k = 5; k >= 0; k--) v = v * t + INF[k][ch]; return Math.round(Math.min(1, Math.max(0, v)) * 255); }); return c; }
+const TSCALE = [300, 2700];
+function testResult(t) { if (t.kind === "limit") return `extinction below ${t.crit} ± ${t.critUnc} cm/s`; return t.spread != null ? `${t.spread} ± ${t.unc} mm/s` : t.outcome; }
+
+/* theme */
+$("#theme").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = cur === "dark" ? "light" : "dark"; document.documentElement.setAttribute("data-theme", next); save("fif.theme", next); redrawCanvases();
+};
+{ const th = load("fif.theme", null); if (th) document.documentElement.setAttribute("data-theme", th); }
+
+/* ============================================================
+   Generic SVG chart
+   ============================================================ */
+function niceTicks(lo, hi, n) { const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0))), err = step0 / mag; const step = (err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1) * mag; const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toPrecision(10)); return out; }
+function logTicks(lo, hi) { const out = []; for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++) [1, 2, 5].forEach(m => { const v = m * 10 ** e; if (v >= lo * .999 && v <= hi * 1.001) out.push(+v.toPrecision(6)); }); return out; }
+function chart(o) {
+  const W = o.w || 600, H = o.h || 260, L = 58, R = o.right || 18, T = 16, B = 42;
+  const xs = o.xLog ? v => L + (W - L - R) * Math.log(v / o.x[0]) / Math.log(o.x[1] / o.x[0]) : v => L + (W - L - R) * (v - o.x[0]) / (o.x[1] - o.x[0]);
+  const ys = v => T + (H - T - B) * (1 - (v - o.y[0]) / (o.y[1] - o.y[0]));
+  const xt = o.xTicks || (o.xLog ? logTicks(o.x[0], o.x[1]) : niceTicks(o.x[0], o.x[1], 6));
+  const yt = niceTicks(o.y[0], o.y[1], 5);
+  const clipId = "c" + Math.random().toString(36).slice(2, 8);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || "")}"><defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></clipPath></defs>`;
+  (o.regions || []).forEach(r => s += `<rect x="${xs(r.x0)}" y="${T}" width="${Math.max(0, xs(r.x1) - xs(r.x0))}" height="${H - T - B}" fill="${r.color}" fill-opacity="${r.op ?? .12}"/>${r.label ? `<text x="${(xs(r.x0) + xs(r.x1)) / 2}" y="${H - B - 8}" text-anchor="middle" style="fill:${r.color}">${esc(r.label)}</text>` : ""}`);
+  yt.forEach(v => s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${ys(v)}" y2="${ys(v)}"/><text x="${L - 6}" y="${ys(v) + 4}" text-anchor="end">${+v.toPrecision(4)}</text>`);
+  xt.forEach(v => s += `<text x="${xs(v)}" y="${H - B + 15}" text-anchor="middle">${v}</text>`);
+  s += `<line class="axis" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/><line class="axis" x1="${L}" x2="${L}" y1="${T}" y2="${H - B}"/>`;
+  s += `<text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle">${esc(o.xLabel)}</text><text x="13" y="${(T + H - B) / 2}" text-anchor="middle" transform="rotate(-90 13 ${(T + H - B) / 2})">${esc(o.yLabel)}</text>`;
+  s += `<g clip-path="url(#${clipId})">`;
+  (o.bands || []).forEach(b => { const pts = b.pts.map(p => `${xs(p[0])},${ys(p[2])}`).join(" ") + " " + [...b.pts].reverse().map(p => `${xs(p[0])},${ys(p[1])}`).join(" "); s += `<polygon points="${pts}" fill="${b.color}" fill-opacity="${b.op ?? .15}"/>`; });
+  (o.series || []).forEach(se => { const d = se.pts.filter(p => p[1] != null && isFinite(p[1])).map((p, i) => `${i ? "L" : "M"}${xs(p[0]).toFixed(1)},${ys(p[1]).toFixed(1)}`).join(""); s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.w || 2}" ${se.dash ? `stroke-dasharray="${se.dash}"` : ""}/>`; });
+  (o.vlines || []).forEach(v => s += `<line x1="${xs(v.x)}" x2="${xs(v.x)}" y1="${T}" y2="${H - B}" stroke="${v.color || "var(--fg)"}" stroke-opacity="${v.op ?? .4}" ${v.dash ? `stroke-dasharray="${v.dash}"` : ""}/>${v.label ? `<text x="${xs(v.x) + 4}" y="${T + 12}" style="fill:${v.color || "var(--muted)"}">${esc(v.label)}</text>` : ""}`);
+  (o.hlines || []).forEach(v => s += `<line x1="${L}" x2="${W - R}" y1="${ys(v.y)}" y2="${ys(v.y)}" stroke="${v.color}" stroke-opacity=".7" stroke-dasharray="4 3"/>${v.label ? `<text x="${W - R - 4}" y="${ys(v.y) - 4}" text-anchor="end" style="fill:${v.color}">${esc(v.label)}</text>` : ""}`);
+  (o.points || []).forEach(p => {
+    if (p.ex != null) s += `<line x1="${xs(p.x - p.ex)}" x2="${xs(p.x + p.ex)}" y1="${ys(p.y)}" y2="${ys(p.y)}" stroke="${p.color}" stroke-width="1.5"/>`;
+    if (p.ey0 != null) s += `<line x1="${xs(p.x)}" x2="${xs(p.x)}" y1="${ys(p.ey0)}" y2="${ys(p.ey1)}" stroke="${p.color}" stroke-width="1.5"/>`;
+    s += p.shape === "diamond" ? `<rect x="${xs(p.x) - 5}" y="${ys(p.y) - 5}" width="10" height="10" fill="${p.color}" transform="rotate(45 ${xs(p.x)} ${ys(p.y)})"><title>${esc(p.title || "")}</title></rect>` : `<circle cx="${xs(p.x)}" cy="${ys(p.y)}" r="${p.r || 4.5}" fill="${p.fill || "var(--panel)"}" stroke="${p.color}" stroke-width="2"><title>${esc(p.title || "")}</title></circle>`;
+    if (p.label) s += `<text x="${xs(p.x) + 7}" y="${ys(p.y) - 6}" style="fill:${p.color}">${esc(p.label)}</text>`;
+  });
+  s += `</g>`;
+  if (o.legend) { let lx = L + 8; s += o.legend.map(l => { const t = `<line x1="${lx}" x2="${lx + 16}" y1="${T + 8}" y2="${T + 8}" stroke="${l.color}" stroke-width="2.5" ${l.dash ? `stroke-dasharray="${l.dash}"` : ""}/><text x="${lx + 20}" y="${T + 12}" class="title">${esc(l.label)}</text>`; lx += 34 + l.label.length * 7.4; return t; }).join(""); }
+  return s + "</svg>";
+}
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+const TABS = ["library", "simulate", "compare", "physics", "ask"];
+function setTab(t) {
+  S.tab = t;
+  TABS.forEach(x => { $("#" + x).hidden = x !== t; $("#tab-" + x).setAttribute("aria-selected", x === t); });
+  try { history.replaceState(null, "", "#" + t); } catch {}
+  if (t === "simulate") requestAnimationFrame(() => { scene && scene.resize(); redrawCanvases(); });
+  if (t === "compare") { renderCompare(); if (!VAL) setTimeout(renderValidation, 30); }
+  if (t === "physics") renderPhysics();
+}
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+
+/* ============================================================
+   Library
+   ============================================================ */
+function completeness(s) { const m = s.meta; const keys = ["platform", "gravity", "materials", "geometry", "o2", "pressure", "flow", "outcome"]; const have = keys.filter(k => m[k] != null && m[k] !== ""); return { frac: have.length / keys.length, missing: keys.filter(k => !have.includes(k)) }; }
+const STOP = new Set("the and of to in a an is are for on with at by from this that it as be or what why how does do which".split(" "));
+function tokens(s) { return String(s).toLowerCase().replace(/[^a-z0-9\-\s]/g, " ").split(/\s+/).filter(w => w.length > 1 && !STOP.has(w)); }
+function textScore(q, text) { const qt = tokens(q); if (!qt.length) return 1; const tt = tokens(text); let hit = 0; qt.forEach(w => { if (tt.some(x => x.startsWith(w) || w.startsWith(x) && x.length > 3)) hit++; }); return hit / qt.length; }
+function condScore(s) {
+  const f = { mat: $("#f-material").value, g: $("#f-gravity").value, o2: parseFloat($("#f-o2").value) }; const checks = [];
+  if (f.mat) checks.push(s.meta.materials?.includes(f.mat));
+  if (f.g) checks.push(s.meta.gravity === f.g);
+  if (!isNaN(f.o2)) checks.push(Array.isArray(s.meta.o2) ? s.meta.o2[1] >= f.o2 : null);
+  if (!checks.length) return { v: 1, unknown: 0 };
+  const known = checks.filter(c => c !== null);
+  return { v: known.length ? known.filter(Boolean).length / checks.length : 0, unknown: checks.length - known.length };
+}
+function renderLibrary() {
+  const q = $("#q").value, sort = $("#f-sort").value;
+  const rows = STUDIES.map(s => { const t = textScore(q, [s.id, s.title, s.summary, s.meta.platform, (s.meta.materials || []).join(" "), s.meta.outcome].join(" ")); const c = condScore(s); const m = completeness(s).frac; return { s, t, c, m, score: .5 * t + .3 * c.v + .2 * m }; }).filter(r => !q || r.t > 0);
+  rows.sort((a, b) => sort === "title" ? a.s.title.localeCompare(b.s.title) : sort === "text" ? b.t - a.t : sort === "complete" ? b.m - a.m : b.score - a.score);
+  $("#results").innerHTML = rows.length ? rows.map(r => `
+    <button class="result" data-id="${r.s.id}" aria-current="${r.s.id === S.study}">
+      <div class="row spread"><span class="mono small">${r.s.id}</span>${BADGE[r.s.prov]}</div>
+      <strong>${esc(r.s.title)}</strong>
+      <div class="row small muted"><span class="scorebar" aria-hidden="true"><span style="width:${50 * r.t}%"></span><span style="width:${30 * r.c.v}%"></span><span style="width:${20 * r.m}%"></span></span>
+      <span class="mono">${(r.score * 100).toFixed(0)}</span><span>text ${(r.t * 100).toFixed(0)} · filters ${(r.c.v * 100).toFixed(0)}${r.c.unknown ? ` (${r.c.unknown} unknown)` : ""} · metadata ${(r.m * 100).toFixed(0)}</span></div>
+    </button>`).join("") : '<p class="muted">No records match. Try fewer words or clear the filters.</p>';
+  $("#results").querySelectorAll(".result").forEach(b => b.onclick = () => { S.study = b.dataset.id; renderLibrary(); });
+  renderDetail();
+}
+function renderDetail() {
+  const s = STUDIES.find(x => x.id === S.study); if (!s) return;
+  const c = completeness(s), m = s.meta;
+  const val = v => v == null ? '<span class="missing">not curated</span>' : Array.isArray(v) ? esc(v.join(" – ")) : esc(v);
+  const tests = TESTS.filter(t => t.study === s.id);
+  $("#detail").innerHTML = `
+    <div class="row spread"><span class="mono">${s.id}</span>${BADGE[s.prov]}</div>
+    <h3 style="font-size:24px">${esc(s.title)}</h3>
+    <p>${esc(s.summary)}</p>
+    <p class="small">Source: <a href="${s.url}" target="_blank" rel="noopener">${esc(s.url)}</a></p>
+    <div class="stack" style="gap:4px"><span class="label">Metadata coverage ${Math.round(c.frac * 100)}%</span><div class="progress"><span style="width:${c.frac * 100}%;background:var(--pub)"></span></div>${c.missing.length ? `<span class="small muted">Missing: ${c.missing.join(", ")}</span>` : ""}</div>
+    <div class="tablewrap"><table><tbody>
+      <tr><th>Platform</th><td>${val(m.platform)}</td></tr><tr><th>Gravity</th><td>${val(m.gravity === "micro" ? "microgravity" : m.gravity === "earth" ? "1 g" : m.gravity)}</td></tr>
+      <tr><th>Materials</th><td>${val(m.materials)}</td></tr><tr><th>Geometry</th><td>${val(m.geometry)}</td></tr>
+      <tr><th>O₂ (% vol)</th><td>${val(m.o2)}</td></tr><tr><th>Pressure (kPa)</th><td>${val(m.pressure)}</td></tr>
+      <tr><th>Flow</th><td>${val(m.flow)}</td></tr><tr><th>Outcomes</th><td>${val(m.outcome)}</td></tr>
+    </tbody></table></div>
+    <div class="stack" style="gap:6px"><span class="label">Files</span>${s.files.map(f => `<div class="small"><a href="${f.url}" target="_blank" rel="noopener">${esc(f.name)}</a> <span class="muted">· ${esc(f.state)}</span></div>`).join("")}</div>
+    <div class="stack" style="gap:6px" id="lib-tests"><span class="label">Curated tests</span>
+    ${tests.length ? `<p class="small muted">Values as stated in ${esc(TM_REF)}. Original units kept.</p>
+    <div class="tablewrap"><table><thead><tr><th>Test</th><th class="num">Thick. µm</th><th class="num">O₂ %</th><th class="num">kPa</th><th class="num">Flow cm/s</th><th class="num">g₀</th><th class="num">Result</th><th></th></tr></thead><tbody>
+      ${tests.map(t => `<tr><td><span class="mono">${t.id}</span> ${BADGE[t.prov]} <span class="badge b-plain">${t.use === "calibration" ? "Calibration" : "Validation"}</span><div class="small muted">${esc(t.sample)} · ${esc(t.cite)}</div></td><td class="num">${+(t.thickness * 1000).toFixed(0)}</td><td class="num">${t.o2}</td><td class="num">${t.pressure}</td><td class="num">${t.kind === "limit" ? "varied" : t.flow}</td><td class="num">${t.gravity}</td><td class="num">${testResult(t)}</td><td><button data-base="${t.id}">Simulate</button></td></tr>
+      <tr><td colspan="8" class="small muted" style="padding-top:0">${esc(t.note)}</td></tr>`).join("")}
+    </tbody></table></div>` : `<p class="small muted">No tests curated yet.</p>`}</div>`;
+  $("#detail").querySelectorAll("[data-base]").forEach(b => b.onclick = () => { setBaseline(b.dataset.base); setTab("simulate"); });
+}
+["#q", "#f-material", "#f-gravity", "#f-o2", "#f-sort"].forEach(s => $(s).addEventListener("input", renderLibrary));
+
+/* ============================================================
+   Scenario controls
+   ============================================================ */
+function setModel(m) {
+  S.model = m;
+  $("#m-fast").setAttribute("aria-pressed", m === "fast"); $("#m-det").setAttribute("aria-pressed", m === "detailed");
+  $("#det-settings").hidden = m !== "detailed";
+  const M = m === "fast" ? MODEL : MODEL2D;
+  $("#model-desc").innerHTML = `<strong>${M.id} v${M.version}.</strong> ${esc(M.desc)} <span class="badge b-warn" style="margin-top:4px">${esc(M.status)}</span>`;
+  $("#run").textContent = m === "fast" ? "Run fast model" : "Run detailed simulation";
+  validate();
+  const r = m === "fast" ? S.fastRun : S.detRun;
+  if (r) showRun(r); else if (m === "fast") runFast(); else { S.run = null; renderRunViews(); }
+}
+$("#m-fast").onclick = () => setModel("fast");
+$("#m-det").onclick = () => setModel("detailed");
+
+function setBaseline(id) {
+  const t = TESTS.find(x => x.id === id); if (!t) return;
+  S.baseline = t.id;
+  Object.assign(S.inputs, { gravity: t.gravity, o2: t.o2, pressure: t.pressure, flow: t.kind === "limit" ? t.crit : t.flow, thickness: t.thickness });
+  renderParams(); $("#baseline").value = id; if (S.model === "fast") runFast(); else markStale();
+}
+function renderBaselineSelect() { $("#baseline").innerHTML = `<option value="">Model defaults</option>` + TESTS.map(t => `<option value="${t.id}">${t.id} · ${t.kind === "limit" ? "extinction limit" : t.outcome}</option>`).join(""); $("#baseline").value = S.baseline || ""; }
+$("#baseline").onchange = e => { if (e.target.value) setBaseline(e.target.value); else { S.baseline = null; S.inputs = { ...DEFAULTS }; renderParams(); S.model === "fast" ? runFast() : markStale(); } };
+
+function renderParams() {
+  $("#params").innerHTML = PARAMS.map(p => {
+    const u = S.units[p.key], f = p.units[u], v = S.inputs[p.key] / f;
+    return `<div class="param" id="p-${p.key}">
+      <label for="in-${p.key}">${p.label}</label><span class="small muted">range ${p.doc[0]}–${p.doc[1]} ${Object.keys(p.units)[0]}</span>
+      <div class="ctl">
+        <input type="range" id="rg-${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${S.inputs[p.key]}" aria-label="${p.label} slider">
+        <input type="text" inputmode="decimal" id="in-${p.key}" value="${+v.toPrecision(5)}">
+        <select id="un-${p.key}" aria-label="${p.label} unit">${Object.keys(p.units).map(k => `<option ${k === u ? "selected" : ""}>${k}</option>`).join("")}</select>
+      </div>
+      <div class="meta">${p.why} Accepted ${p.min}–${p.max}.</div>
+      <div class="err" hidden></div><div class="flag" hidden></div>
+    </div>`;
+  }).join("");
+  PARAMS.forEach(p => {
+    const rg = $("#rg-" + p.key), tx = $("#in-" + p.key), un = $("#un-" + p.key);
+    rg.oninput = () => { S.inputs[p.key] = +rg.value; tx.value = +(S.inputs[p.key] / p.units[S.units[p.key]]).toPrecision(5); tx.removeAttribute("aria-invalid"); onInput(); };
+    tx.onchange = () => {
+      const err = tx.closest(".param").querySelector(".err"); const raw = tx.value.trim(), n = Number(raw);
+      if (raw === "" || !isFinite(n)) { err.textContent = `“${raw}” is not a number. Enter a value in ${S.units[p.key]}.`; err.hidden = false; tx.setAttribute("aria-invalid", "true"); return; }
+      const base = n * p.units[S.units[p.key]];
+      if (base < p.min || base > p.max) { err.textContent = `${n} ${S.units[p.key]} is outside the accepted ${p.min}–${p.max} ${Object.keys(p.units)[0]}. Not applied.`; err.hidden = false; tx.setAttribute("aria-invalid", "true"); return; }
+      err.hidden = true; tx.removeAttribute("aria-invalid"); S.inputs[p.key] = base; rg.value = base; onInput();
+    };
+    un.onchange = () => { S.units[p.key] = un.value; tx.value = +(S.inputs[p.key] / p.units[un.value]).toPrecision(5); };
+  });
+  validate();
+}
+function onInput() { validate(); if (S.model === "fast") runFast(); else markStale(); renderFlam(); renderSweep(); }
+function outOfRange(inp) { return PARAMS.filter(p => inp[p.key] < p.doc[0] - 1e-9 || inp[p.key] > p.doc[1] + 1e-9).map(p => ({ key: p.key, label: p.label, v: inp[p.key], unit: Object.keys(p.units)[0], doc: p.doc })); }
+function detProblems(inp) {
+  const out = [];
+  if (inp.thickness < DET_LIMITS.thickness[0] || inp.thickness > DET_LIMITS.thickness[1]) out.push(`FFR-2D treats the sheet as thermally thin and supports ${DET_LIMITS.thickness[0]}–${DET_LIMITS.thickness[1]} mm. Current ${fmt(inp.thickness)} mm.`);
+  if (inp.flow > DET_LIMITS.flow[1]) out.push(`FFR-2D supports opposed flow up to ${DET_LIMITS.flow[1]} cm/s; above that the 0.5 mm grid cannot resolve the flame.`);
+  return out;
+}
+function validate() {
+  const oor = outOfRange(S.inputs);
+  PARAMS.forEach(p => { const el = $("#p-" + p.key); if (!el) return; const fl = el.querySelector(".flag"); const o = oor.find(x => x.key === p.key); fl.hidden = !o; if (o) fl.textContent = `Outside the documented range. Results will be labeled exploratory.`; });
+  const probs = S.model === "detailed" ? detProblems(S.inputs) : [];
+  $("#run").disabled = probs.length > 0 || !!S.worker;
+  $("#run-status").innerHTML = probs.length ? `<span style="color:var(--bad)">${probs.map(esc).join(" ")}</span>` : S.model === "detailed" && !S.worker ? (S.detRun && S.detStale ? "Inputs changed since the shown run. Run again to update." : S.detRun ? "" : "Press Run to start the detailed solver.") : "";
+}
+function markStale() { if (S.detRun) S.detStale = true; validate(); }
+
+/* detailed settings */
+function renderDset() {
+  $("#s-kap").value = S.dset.kap; $("#s-kap-v").textContent = S.dset.kap.toFixed(2); $("#s-cp").value = S.dset.cp; $("#s-cp-v").textContent = S.dset.cp;
+}
+$("#s-kap").oninput = e => { S.dset.kap = +e.target.value; renderDset(); markStale(); };
+$("#s-cp").oninput = e => { S.dset.cp = +e.target.value; renderDset(); markStale(); };
+
+/* ---------- running ---------- */
+let runTimer = null;
+function runFast() { clearTimeout(runTimer); runTimer = setTimeout(() => doFast(false), 50); }
+function doFast(saveIt) {
+  const t0 = performance.now();
+  const inp = { ...S.inputs, material: "PMMA", flowDir: "opposed" };
+  const res = runModel(inp);
+  const n = res.nom;
+  const run = { id: "f-" + hash(JSON.stringify(inp) + MODEL.version).toString(16).padStart(8, "0"), model: MODEL.id, version: MODEL.version, mode: "fast", inputs: inp,
+    outputs: { spread_mm_s: res.Vmm, p05: res.p05, p95: res.p95, p_extinction: res.pExt, outcome: n.outcome, cause: n.cause, regime: n.regime, T_flame_K: n.Tf, U_eff_m_s: n.U, U_buoyant_m_s: n.Ub, Damkohler: n.Da, radiative_loss_ratio: n.chi, q_conv: n.qConv, q_rad: n.qRad, gas_length_mm: n.alphaG / Math.max(n.U, 1e-6) * 1000 },
+    exploratory: outOfRange(inp), ms: performance.now() - t0, at: new Date().toISOString(), baseline: S.baseline };
+  S.fastRun = run;
+  if (saveIt) saveRun(run);
+  if (S.model === "fast") showRun(run);
+  return run;
+}
+function saveRun(run) { if (!S.runs.some(r => r.id === run.id)) { S.runs.unshift(run); S.runs = S.runs.slice(0, 40); save("fif.runs2", S.runs); } renderRuns(); }
+const WORKER_SRC = ffr2d.toString() + "\nonmessage = e => { const { inp, opt } = e.data; const r = ffr2d(inp, opt, (p, t) => postMessage({ type: 'progress', p, t })); postMessage({ type: 'done', r }); };";
+function runDetailed(inpOverride) {
+  return new Promise((resolve) => {
+    const inp = { ...(inpOverride || S.inputs), material: "PMMA", flowDir: "opposed" };
+    const opt = { kap: S.dset.kap, cp: S.dset.cp, tMax: 40 };
+    const t0 = performance.now();
+    const finish = r => {
+      S.worker = null; $("#cancel").hidden = true; $("#prog").hidden = true;
+      if (!r) { validate(); $("#run-status").textContent = "Canceled."; return resolve(null); }
+      const id = "d-" + hash(JSON.stringify(inp) + JSON.stringify(opt) + MODEL2D.version).toString(16).padStart(8, "0");
+      const lastT = Math.max(...r.front.map(f => f.Tmax));
+      const run = { id, model: MODEL2D.id, version: MODEL2D.version, mode: "detailed", inputs: inp, settings: opt, nonDefault: opt.kap !== DSET0.kap || opt.cp !== DSET0.cp,
+        outputs: { spread_mm_s: r.outcome === "extinction" ? 0 : r.Vmm, outcome: r.outcome, cause: r.status === "extinction" ? "computed flame temperature fell below 1000 K after ignition" : r.status === "time limit" ? "front did not reach the end of the domain within 40 s" : "", r2: r.r2, Tmax_K: lastT, U_eff_m_s: r.U, U_buoyant_m_s: r.Ub, status: r.status, steps: r.steps, sim_time_s: r.front.at(-1).t, gas_length_mm: r.alpha / Math.max(r.U, 1e-6) * 1000 },
+        grid: { nx: r.nx, ny: r.ny, dx_mm: r.dx * 1000, dt_ms: r.dt * 1000 },
+        exploratory: outOfRange(inp), ms: performance.now() - t0, at: new Date().toISOString(), baseline: S.baseline };
+      S.frames[id] = r;
+      S.detRun = run; S.detStale = false;
+      saveRun(run);
+      if (S.model === "detailed") { S.t = 1; showRun(run); }
+      validate();
+      $("#run-status").textContent = `Done in ${(run.ms / 1000).toFixed(1)} s: ${r.steps.toLocaleString()} time steps, ${fmt(run.outputs.sim_time_s)} s simulated.`;
+      resolve(run);
+    };
+    $("#cancel").hidden = false; $("#prog").hidden = false; $("#prog span").style.width = "0%";
+    $("#run-status").textContent = "Solving…";
+    let w = null;
+    try { w = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" }))); } catch { w = null; }
+    if (!w) { $("#run-status").textContent = "Web Workers are blocked here; solving on the page (it will pause briefly)…"; setTimeout(() => finish(ffr2d(inp, opt)), 50); return; }
+    S.worker = { w, finish }; validate();
+    w.onmessage = e => { if (e.data.type === "progress") { $("#prog span").style.width = (e.data.p * 100).toFixed(0) + "%"; $("#run-status").textContent = `Solving… ${e.data.t.toFixed(1)} s of flame time computed`; } else { w.terminate(); finish(e.data.r); } };
+    w.onerror = () => { w.terminate(); S.worker = null; $("#run-status").textContent = "The solver stopped with an error."; $("#cancel").hidden = true; $("#prog").hidden = true; validate(); resolve(null); };
+    w.postMessage({ inp, opt });
+  });
+}
+$("#run").onclick = () => { if (S.model === "fast") { doFast(true); toast("Run saved"); } else runDetailed(); };
+$("#cancel").onclick = () => { if (S.worker) { S.worker.w.terminate(); const f = S.worker.finish; S.worker = null; f(null); } };
+$("#reset").onclick = () => { S.dset = { ...DSET0 }; renderDset(); if (S.baseline) setBaseline(S.baseline); else { S.inputs = { ...DEFAULTS }; renderParams(); S.model === "fast" ? runFast() : markStale(); } };
+
+/* ---------- presenting a run ---------- */
+function showRun(run) { S.run = run; renderRunViews(); }
+function frameOf(run) { const r = run && S.frames[run.id]; if (!r) return null; const i = Math.min(r.frames.length - 1, Math.round(S.t * (r.frames.length - 1))); return { r, f: r.frames[i], i }; }
+function renderRunViews() { renderKPIs(); scene && scene.update(S.run); renderTimeDependent(); renderFront(); renderSweep(); renderFlam(); }
+function renderKPIs() {
+  const r = S.run;
+  if (!r) { $("#kpis").innerHTML = `<div class="empty" style="grid-column:1/-1">No detailed run yet. Set the conditions and press <strong>Run detailed simulation</strong>. It takes 5–20 seconds and computes the full temperature field.</div>`; $("#run-flags").innerHTML = ""; return; }
+  const o = r.outputs, ext = o.outcome === "extinction", det = r.mode === "detailed";
+  const spreadU = det ? `mm/s · fit r² ${fmt(o.r2, 3)}` : `mm/s · 90% band ${fmt(o.p05)}–${fmt(o.p95)}`;
+  $("#kpis").innerHTML = `
+    <div class="kpi"><span class="label">Outcome</span><span class="v" style="font-size:18px;color:var(${ext ? "--bad" : o.outcome === "indeterminate" ? "--warn" : "--good"})">${ext ? "Extinction" : o.outcome === "indeterminate" ? "Indeterminate" : "Spreads"}</span><span class="u">${ext || o.outcome === "indeterminate" ? esc(o.cause) : det ? "flame reached the end of the sheet" : "P(extinction) " + (o.p_extinction * 100).toFixed(0) + "%"}</span></div>
+    <div class="kpi"><span class="label">Spread rate</span><span class="v">${fmt(o.spread_mm_s)}</span><span class="u">${spreadU}</span></div>
+    <div class="kpi"><span class="label">${det ? "Peak gas temp." : "Flame temp."}</span><span class="v">${fmt(det ? o.Tmax_K : o.T_flame_K, 4)}</span><span class="u">K · ${det ? "computed" : "lumped estimate"}</span></div>
+    <div class="kpi"><span class="label">Effective flow</span><span class="v">${fmt(o.U_eff_m_s * 100)}</span><span class="u">cm/s · buoyant ${fmt(o.U_buoyant_m_s * 100)}</span></div>`;
+  const flags = [];
+  flags.push(`<span class="badge b-sim">Simulated</span><span class="small muted">${r.model} v${r.version} · ${r.mode}${det ? ` · grid ${r.grid.nx}×${r.grid.ny} at ${r.grid.dx_mm} mm · ${fmt(o.sim_time_s)} s simulated` : ""} · run ${r.id}</span>`);
+  if (r.exploratory.length) flags.push(`<span class="badge b-warn">Exploratory</span><span class="small">${r.exploratory.map(e => `${e.label} ${fmt(e.v, 4)} ${e.unit} outside ${e.doc[0]}–${e.doc[1]}`).join("; ")}</span>`);
+  if (det && r.nonDefault) flags.push(`<span class="badge b-warn">Non-default assumptions</span><span class="small">κ = ${r.settings.kap}, cp = ${r.settings.cp}</span>`);
+  if (det && o.gas_length_mm < 2) flags.push(`<span class="badge b-warn">Under-resolved</span><span class="small">gas length α/U = ${fmt(o.gas_length_mm)} mm is under 4 grid cells</span>`);
+  if (det && S.detStale) flags.push(`<span class="badge b-warn">Stale</span><span class="small">inputs changed since this run</span>`);
+  $("#run-flags").innerHTML = `<div class="stack" style="gap:6px">${flags.map(f => `<div class="row">${f}</div>`).join("")}</div>`;
+}
+
+/* ---------- time-dependent views ---------- */
+function renderTimeDependent() {
+  const r = S.run, fr = frameOf(r);
+  if (scene) scene.setTime();
+  if (r && r.mode === "detailed" && fr) {
+    $("#tlabel").textContent = `t = ${fr.f.t.toFixed(1)} s`;
+    const xf = fr.r.front[fr.i].xf * 1000;
+    $("#scene-text").textContent = fr.r.outcome === "extinction" && fr.i === fr.r.frames.length - 1 ? `Simulated: the flame went out at t ≈ ${fr.f.t.toFixed(1)} s.` : `Simulated: at t = ${fr.f.t.toFixed(1)} s the 1200 K leading edge is at ${xf.toFixed(1)} mm and the peak gas temperature is ${Math.round(fr.r.front[fr.i].Tmax)} K.`;
+  } else if (r && r.mode === "fast") {
+    const tmax = fastTmax(r), t = S.t * tmax, xf = Math.min(38, 3 + r.outputs.spread_mm_s * t);
+    $("#tlabel").textContent = `t = ${fmt(t, 3)} s`;
+    $("#scene-text").textContent = r.outputs.outcome === "extinction" ? `Simulated: no sustained spread (${r.outputs.cause}).` : `Simulated: front at ${xf.toFixed(1)} mm after ${fmt(t, 3)} s at ${fmt(r.outputs.spread_mm_s)} mm/s. The flame shape is drawn, not computed; switch to FFR-2D for the computed field.`;
+  } else { $("#tlabel").textContent = ""; $("#scene-text").textContent = ""; }
+  drawField(); renderWall(); if (S.tab === "physics") renderBudgets();
+}
+function fastTmax(r) { const V = r.outputs.spread_mm_s; return V > 0 ? 35 / V : 20; }
+
+/* gas field heatmap */
+function drawField() {
+  const wrap = $("#field-wrap"), r = S.run, fr = frameOf(r);
+  $("#field-badge").innerHTML = fr ? BADGE.sim : "";
+  if (!fr) { wrap.innerHTML = `<div class="empty">The gas field comes from the detailed solver. Switch to <strong>Detailed · FFR-2D</strong> and run it.</div>`; return; }
+  let cv = wrap.querySelector("canvas");
+  if (!cv) { wrap.innerHTML = `<canvas class="plot" width="640" height="300" aria-label="Gas temperature field"></canvas>`; cv = wrap.querySelector("canvas"); cv.addEventListener("mousemove", fieldHover); cv.addEventListener("mouseleave", hideTip); }
+  const { r: R, f } = fr, nx = R.nx, ny = R.ny;
+  const ctx = cv.getContext("2d"), W = cv.width, H = cv.height, L = 48, Rm = 70, T = 12, B = 44;
+  const pw = W - L - Rm, ph = H - T - B;
+  ctx.clearRect(0, 0, W, H);
+  const field = S.field === "H" ? f.H : f.T;
+  let hmax = 1; if (S.field === "H") for (let k = 0; k < f.H.length; k++) hmax = Math.max(hmax, f.H[k]);
+  const img = ctx.createImageData(nx, ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const v = field[i + j * nx], tn = S.field === "H" ? Math.sqrt(v / hmax) : (v - TSCALE[0]) / (TSCALE[1] - TSCALE[0]);
+    const c = inferno(tn), o = (i + (ny - 1 - j) * nx) * 4; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+  }
+  const off = document.createElement("canvas"); off.width = nx; off.height = ny; off.getContext("2d").putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(off, L, T, pw, ph);
+  // isotherms (marching squares on T)
+  ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 1;
+  const X = i => L + (i + .5) / nx * pw, Y = j => T + ph - (j + .5) / ny * ph;
+  [800, 1200, 1600, 2000].forEach(lv => {
+    ctx.beginPath();
+    for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const a = f.T[i + j * nx], b = f.T[i + 1 + j * nx], c = f.T[i + 1 + (j + 1) * nx], d = f.T[i + (j + 1) * nx];
+      const pts = []; const e = (v1, v2, x1, y1, x2, y2) => { if ((v1 - lv) * (v2 - lv) < 0) { const k = (lv - v1) / (v2 - v1); pts.push([x1 + (x2 - x1) * k, y1 + (y2 - y1) * k]); } };
+      e(a, b, i, j, i + 1, j); e(b, c, i + 1, j, i + 1, j + 1); e(c, d, i + 1, j + 1, i, j + 1); e(d, a, i, j + 1, i, j);
+      if (pts.length >= 2) { ctx.moveTo(X(pts[0][0]), Y(pts[0][1])); ctx.lineTo(X(pts[1][0]), Y(pts[1][1])); }
+      if (pts.length === 4) { ctx.moveTo(X(pts[2][0]), Y(pts[2][1])); ctx.lineTo(X(pts[3][0]), Y(pts[3][1])); }
+    }
+    ctx.stroke();
+  });
+  // sheet bar (remaining mass)
+  for (let i = 0; i < nx; i++) { const m = f.m[i]; ctx.fillStyle = m > 0 ? `rgba(${Math.round(150 + 100 * (1 - m))},${Math.round(190 - 90 * Math.min(1, (f.Ts[i] - 298) / 400))},${Math.round(210 - 160 * Math.min(1, (f.Ts[i] - 298) / 400))},1)` : css("--sunk"); ctx.fillRect(L + i / nx * pw, T + ph + 2, pw / nx + .5, 6); }
+  // axes
+  const fg = css("--muted");
+  ctx.fillStyle = fg; ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+  [0, 10, 20, 30, 40].forEach(mm => { const x = L + mm / 40 * pw; ctx.fillText(mm, x, T + ph + 22); });
+  ctx.fillText("x along the sheet (mm) · flow ←", L + pw / 2, H - 6);
+  ctx.textAlign = "right"; [0, 4, 8, 12].forEach(mm => ctx.fillText(mm, L - 6, T + ph - mm / 12 * ph + 4));
+  ctx.save(); ctx.translate(12, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.fillText("y (mm)", 0, 0); ctx.restore();
+  // colorbar
+  const cx = W - Rm + 18; for (let k = 0; k < ph; k++) { const c = inferno(1 - k / ph); ctx.fillStyle = `rgb(${c})`; ctx.fillRect(cx, T + k, 12, 1); }
+  ctx.textAlign = "left"; ctx.fillStyle = fg;
+  if (S.field === "H") { ctx.fillText(fmt(hmax / 1e6, 2), cx + 16, T + 8); ctx.fillText("0", cx + 16, T + ph); ctx.fillText("MW/m³", cx - 4, T + ph + 22); }
+  else[300, 1000, 1700, 2400].forEach(v => ctx.fillText(v, cx + 16, T + ph - (v - TSCALE[0]) / (TSCALE[1] - TSCALE[0]) * ph + 4)), ctx.fillText("K", cx + 2, T + ph + 22);
+  cv._geo = { L, T, pw, ph, nx, ny };
+}
+function fieldHover(e) {
+  const cv = e.currentTarget, g = cv._geo, fr = frameOf(S.run); if (!g || !fr) return;
+  const rc = cv.getBoundingClientRect(), sx = cv.width / rc.width, x = (e.clientX - rc.left) * sx, y = (e.clientY - rc.top) * sx;
+  const i = Math.floor((x - g.L) / g.pw * g.nx), j = Math.floor((g.T + g.ph - y) / g.ph * g.ny);
+  if (i < 0 || i >= g.nx || j < 0 || j >= g.ny) return hideTip();
+  const k = i + j * g.nx; showTip(e, `x ${((i + .5) * .5).toFixed(1)} mm, y ${((j + .5) * .5).toFixed(1)} mm · T ${Math.round(fr.f.T[k])} K · HRR ${fmt(fr.f.H[k] / 1e6, 3)} MW/m³`);
+}
+let tipEl = null;
+function showTip(e, txt) { if (!tipEl) { tipEl = document.createElement("div"); tipEl.className = "tip"; document.body.append(tipEl); } tipEl.textContent = txt; tipEl.style.left = Math.min(innerWidth - 300, e.clientX + 12) + "px"; tipEl.style.top = (e.clientY + 14) + "px"; tipEl.hidden = false; }
+function hideTip() { if (tipEl) tipEl.hidden = true; }
+
+/* front chart */
+function renderFront() {
+  const r = S.run, R = r && S.frames[r.id];
+  $("#front-badge").innerHTML = R ? BADGE.sim : "";
+  if (!R) { $("#front").innerHTML = `<div class="empty">Front tracking comes from the detailed solver.</div>`; return; }
+  const fr = R.front, tEnd = fr.at(-1).t, cur = frameOf(r);
+  const series = [{ pts: fr.map(p => [p.t, p.xf * 1000]), color: "var(--sim)" }, { pts: fr.map(p => [p.t, p.xp * 1000]), color: "var(--ill)", dash: "5 3" }];
+  if (R.fit) series.push({ pts: [[R.fit.t0, (R.fit.b0 + R.fit.V * R.fit.t0) * 1000], [R.fit.t1, (R.fit.b0 + R.fit.V * R.fit.t1) * 1000]], color: "var(--fg)", w: 1.5, dash: "2 2" });
+  $("#front").innerHTML = chart({ x: [0, Math.max(2, tEnd)], y: [0, 40], xLabel: "time (s)", yLabel: "position (mm)", series, aria: "Flame front position over time",
+    vlines: [{ x: R.tIgn, label: "igniter off", dash: "3 3", op: .35 }, ...(cur ? [{ x: cur.f.t, color: "var(--accent)", op: .8 }] : [])],
+    legend: [{ label: "leading edge 1200 K", color: "var(--sim)" }, { label: "pyrolysis front", color: "var(--ill)", dash: "5 3" }, ...(R.fit ? [{ label: `fit ${fmt(R.fit.V * 1000)} mm/s`, color: "var(--fg)", dash: "2 2" }] : [])] });
+}
+/* wall profiles */
+function renderWall() {
+  const fr = frameOf(S.run);
+  if (!fr) { $("#wall").innerHTML = `<div class="empty">Surface profiles come from the detailed solver.</div>`; return; }
+  const { r: R, f } = fr, xs = i => (i + .5) * R.dx * 1000;
+  const live = i => f.m[i] > 0;
+  const ts = []; const qc = [], qr = [];
+  for (let i = 0; i < R.nx; i++) { ts.push([xs(i), live(i) ? f.Ts[i] : null]); qc.push([xs(i), live(i) ? f.qc[i] / 1000 : null]); qr.push([xs(i), live(i) ? f.qr[i] / 1000 : null]); }
+  const qmax = Math.max(5, ...qc.map(p => p[1] ?? 0)) * 1.1;
+  $("#wall").innerHTML = chart({ h: 200, x: [0, 40], y: [250, Math.max(800, ...ts.map(p => p[1] ?? 0)) + 50], xLabel: "x (mm)", yLabel: "surface T (K)", series: [{ pts: ts, color: "var(--ill)" }], hlines: [{ y: 660, color: "var(--pub)", label: "≈ pyrolysis 660 K" }], aria: "Sheet surface temperature" })
+    + chart({ h: 200, x: [0, 40], y: [Math.min(0, ...qr.map(p => -(p[1] ?? 0))), qmax], xLabel: "x (mm)", yLabel: "heat flux (kW/m²)", series: [{ pts: qc, color: "var(--sim)" }, { pts: qr.map(p => [p[0], p[1] == null ? null : -p[1]]), color: "var(--bad)", dash: "4 3" }],
+      legend: [{ label: "conducted in from flame", color: "var(--sim)" }, { label: "re-radiated (negative)", color: "var(--bad)", dash: "4 3" }], aria: "Surface heat fluxes" });
+}
+
+/* sweep */
+const XV = { flow: { lo: 0.3, hi: 100, unit: "cm/s", log: true }, o2: { lo: 14, hi: 40, unit: "% O₂" }, pressure: { lo: 30, hi: 101.3, unit: "kPa" }, gravity: { lo: 0, hi: 1, unit: "g₀" }, thickness: { lo: 0.05, hi: 25, unit: "mm", log: true } };
+function renderSweep() {
+  const xk = S.xvar, cfg = XV[xk], N = 41;
+  const xs = Array.from({ length: N }, (_, i) => cfg.log ? cfg.lo * Math.pow(cfg.hi / cfg.lo, i / (N - 1)) : cfg.lo + (cfg.hi - cfg.lo) * i / (N - 1));
+  const pts = xs.map(x => { const r = runModel({ ...S.inputs, [xk]: x }, 80); return [x, r.Vmm, r.p05, r.p95]; });
+  const near = (t, skip) => PARAMS.every(p => p.key === skip || Math.abs(t[p.key] - S.inputs[p.key]) <= Math.max(.02 * Math.abs(S.inputs[p.key]), p.key === "gravity" ? .01 : .05));
+  const obs = TESTS.filter(t => t.spread != null && near(t, xk));
+  const lims = xk === "flow" ? TESTS.filter(t => t.kind === "limit" && near(t, "flow")) : [];
+  const ymax = Math.max(.1, ...pts.map(p => p[3]), ...obs.map(t => t.spread + t.unc)) * 1.12;
+  const cur = S.inputs[xk], fo = S.fastRun && S.fastRun.outputs.spread_mm_s;
+  const dets = S.runs.filter(r => r.mode === "detailed" && r.outputs.spread_mm_s != null && near(r.inputs, xk));
+  $("#sweep").innerHTML = chart({ w: 1000, h: 300, x: [cfg.lo, cfg.hi], xLog: cfg.log, y: [0, ymax], xLabel: `${xk} (${cfg.unit})`, yLabel: "spread rate (mm/s)", aria: "Spread rate sweep",
+    regions: lims.map(t => ({ x0: Math.max(cfg.lo, t.crit - t.critUnc), x1: t.crit + t.critUnc, color: "var(--pub)", op: .16, label: t.id })),
+    bands: [{ pts: pts.map(p => [p[0], p[2], p[3]]), color: "var(--sim)" }], series: [{ pts: pts.map(p => [p[0], p[1]]), color: "var(--sim)", dash: "6 3" }],
+    points: [...obs.map(t => ({ x: t[xk], y: t.spread, ey0: t.spread - t.unc, ey1: t.spread + t.unc, color: "var(--pub)", title: `${t.id}: ${t.spread} ± ${t.unc} mm/s`, label: t.id })),
+      ...dets.map(r => ({ x: r.inputs[xk], y: r.outputs.spread_mm_s, color: "var(--sim)", fill: "var(--sim)", r: 4, title: `FFR-2D ${r.id}: ${fmt(r.outputs.spread_mm_s)} mm/s` })),
+      ...(cur >= cfg.lo && cur <= cfg.hi && fo != null ? [{ x: cur, y: fo, color: "var(--sim)", shape: "diamond", title: "current scenario (FFR-1)" }] : [])],
+    legend: [{ label: "FFR-1 nominal", color: "var(--sim)", dash: "6 3" }, { label: "published test", color: "var(--pub)" }, ...(dets.length ? [{ label: "FFR-2D runs (dots)", color: "var(--sim)" }] : [])] });
+  $("#sweep-table").innerHTML = `<table><thead><tr><th class="num">${xk} (${cfg.unit})</th><th class="num">nominal mm/s</th><th class="num">p05</th><th class="num">p95</th></tr></thead><tbody>${pts.filter((_, i) => i % 4 === 0).map(p => `<tr><td class="num">${fmt(p[0])}</td><td class="num">${fmt(p[1])}</td><td class="num">${fmt(p[2])}</td><td class="num">${fmt(p[3])}</td></tr>`).join("")}</tbody></table>`;
+}
+$("#xvar").onchange = e => { S.xvar = e.target.value; renderSweep(); };
+
+/* flammability map */
+const FLAM = { f: [0.3, 60], o: [12, 32] };
+function renderFlam() {
+  const cv = $("#flam"); if (!cv) return;
+  const ctx = cv.getContext("2d"), W = cv.width, H = cv.height, L = 52, R = 76, T = 12, B = 44, pw = W - L - R, ph = H - T - B;
+  ctx.clearRect(0, 0, W, H);
+  const nxm = 90, nym = 60, grid = new Float32Array(nxm * nym); let vmax = 0;
+  const fx = i => FLAM.f[0] * Math.pow(FLAM.f[1] / FLAM.f[0], (i + .5) / nxm), oy = j => FLAM.o[0] + (FLAM.o[1] - FLAM.o[0]) * (j + .5) / nym;
+  for (let j = 0; j < nym; j++) for (let i = 0; i < nxm; i++) { const v = solve({ ...S.inputs, flow: fx(i), o2: oy(j) }, NOMINAL).V * 1000; grid[i + j * nxm] = v; vmax = Math.max(vmax, v); }
+  const img = ctx.createImageData(nxm, nym), dead = css("--sunk");
+  const dc = dead.startsWith("#") ? [parseInt(dead.slice(1, 3), 16), parseInt(dead.slice(3, 5), 16), parseInt(dead.slice(5, 7), 16)] : [128, 128, 128];
+  for (let j = 0; j < nym; j++) for (let i = 0; i < nxm; i++) { const v = grid[i + j * nxm], o = (i + (nym - 1 - j) * nxm) * 4; const c = v > 0 ? inferno(.15 + .8 * Math.sqrt(v / vmax)) : dc; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255; }
+  const off = document.createElement("canvas"); off.width = nxm; off.height = nym; off.getContext("2d").putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(off, L, T, pw, ph);
+  const X = f => L + pw * Math.log(f / FLAM.f[0]) / Math.log(FLAM.f[1] / FLAM.f[0]), Y = o => T + ph * (1 - (o - FLAM.o[0]) / (FLAM.o[1] - FLAM.o[0]));
+  // hatch the dead zone edge: boundary line
+  ctx.strokeStyle = css("--fg"); ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let j = 0; j < nym; j++) for (let i = 0; i < nxm - 1; i++) { const a = grid[i + j * nxm] > 0, b = grid[i + 1 + j * nxm] > 0; if (a !== b) { const x = L + (i + 1) / nxm * pw; ctx.moveTo(x, T + ph - j / nym * ph); ctx.lineTo(x, T + ph - (j + 1) / nym * ph); } }
+  for (let j = 0; j < nym - 1; j++) for (let i = 0; i < nxm; i++) { const a = grid[i + j * nxm] > 0, b = grid[i + (j + 1) * nxm] > 0; if (a !== b) { const y = T + ph - (j + 1) / nym * ph; ctx.moveTo(L + i / nxm * pw, y); ctx.lineTo(L + (i + 1) / nxm * pw, y); } }
+  ctx.stroke();
+  // BASS-II limits
+  const pub = css("--pub");
+  TESTS.filter(t => t.kind === "limit").forEach(t => { ctx.strokeStyle = pub; ctx.fillStyle = pub; ctx.lineWidth = 2.5; const y = Y(t.o2); ctx.beginPath(); ctx.moveTo(X(Math.max(FLAM.f[0], t.crit - t.critUnc)), y); ctx.lineTo(X(t.crit + t.critUnc), y); ctx.stroke(); ctx.beginPath(); ctx.arc(X(t.crit), y, 4, 0, 7); ctx.fill(); });
+  TESTS.filter(t => t.kind === "spread" && t.gravity === S.inputs.gravity).forEach(t => { ctx.strokeStyle = pub; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(Math.max(FLAM.f[0], t.flow)), Y(t.o2), 5, 0, 7); ctx.stroke(); });
+  // current
+  const cxp = X(Math.min(FLAM.f[1], Math.max(FLAM.f[0], S.inputs.flow))), cyp = Y(Math.min(FLAM.o[1], Math.max(FLAM.o[0], S.inputs.o2)));
+  ctx.fillStyle = css("--sim"); ctx.strokeStyle = css("--panel"); ctx.lineWidth = 2; ctx.save(); ctx.translate(cxp, cyp); ctx.rotate(Math.PI / 4); ctx.fillRect(-6, -6, 12, 12); ctx.strokeRect(-6, -6, 12, 12); ctx.restore();
+  // axes & labels
+  const fg = css("--muted"); ctx.fillStyle = fg; ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+  [0.5, 1, 2, 5, 10, 20, 50].forEach(v => ctx.fillText(v, X(v), T + ph + 15)); ctx.fillText("opposed flow (cm/s, log scale)", L + pw / 2, H - 8);
+  ctx.textAlign = "right"; [12, 16, 20, 24, 28, 32].forEach(v => ctx.fillText(v, L - 6, Y(v) + 4));
+  ctx.save(); ctx.translate(12, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.fillText("oxygen (% vol)", 0, 0); ctx.restore();
+  ctx.fillStyle = css("--fg"); ctx.textAlign = "left"; ctx.font = "600 12px 'Barlow Condensed', sans-serif";
+  ctx.fillText("RADIATIVE QUENCH", L + 6, T + ph - 8); ctx.textAlign = "right"; ctx.fillText("BLOWOFF", L + pw - 6, T + ph - 8);
+  const cbx = W - R + 18; for (let k = 0; k < ph; k++) { const c = inferno(.15 + .8 * Math.sqrt(1 - k / ph)); ctx.fillStyle = `rgb(${c})`; ctx.fillRect(cbx, T + k, 12, 1); }
+  ctx.fillStyle = fg; ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textAlign = "left"; ctx.fillText(fmt(vmax, 2), cbx + 16, T + 8); ctx.fillText("0", cbx + 16, T + ph); ctx.fillText("mm/s", cbx - 4, T + ph + 22);
+  cv._flam = { X, Y, L, T, pw, ph, grid, nxm, nym, fx, oy };
+}
+$("#flam").addEventListener("mousemove", e => {
+  const cv = e.currentTarget, g = cv._flam; if (!g) return; const rc = cv.getBoundingClientRect(), s = cv.width / rc.width, x = (e.clientX - rc.left) * s, y = (e.clientY - rc.top) * s;
+  const i = Math.floor((x - g.L) / g.pw * g.nxm), j = Math.floor((g.T + g.ph - y) / g.ph * g.nym); if (i < 0 || i >= g.nxm || j < 0 || j >= g.nym) return hideTip();
+  const v = g.grid[i + j * g.nxm]; showTip(e, `${fmt(g.fx(i), 3)} cm/s, ${g.oy(j).toFixed(1)}% O₂ → ${v > 0 ? fmt(v) + " mm/s" : "no sustained spread"}`);
+});
+$("#flam").addEventListener("mouseleave", hideTip);
+$("#flam").addEventListener("click", e => { const cv = e.currentTarget, g = cv._flam; if (!g) return; const rc = cv.getBoundingClientRect(), s = cv.width / rc.width, x = (e.clientX - rc.left) * s, y = (e.clientY - rc.top) * s; const i = Math.floor((x - g.L) / g.pw * g.nxm), j = Math.floor((g.T + g.ph - y) / g.ph * g.nym); if (i < 0 || i >= g.nxm || j < 0 || j >= g.nym) return; S.inputs.flow = +g.fx(i).toFixed(2); S.inputs.o2 = +g.oy(j).toFixed(1); renderParams(); onInput(); toast(`Scenario set to ${S.inputs.flow} cm/s, ${S.inputs.o2}% O₂`); });
+function redrawCanvases() { drawField(); renderFlam(); }
+
+/* ============================================================
+   Three.js scene
+   ============================================================ */
+let scene = null;
+function initScene() {
+  const host = $("#viewport");
+  let ok = false;
+  try { ok = !!document.createElement("canvas").getContext("webgl2") && !!window.THREE; } catch {}
+  if (!ok) { host.insertAdjacentHTML("afterbegin", '<div class="nowebgl">WebGL 2 is not available, so the 3D view is off. The gas-field map, charts and tables below carry the same computed values.</div>'); return null; }
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  host.prepend(renderer.domElement);
+  const sc = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, 2, 0.05, 200);
+  cam.position.set(1.6, 3.4, 8.2);
+  const ctl = THREE.OrbitControls ? new THREE.OrbitControls(cam, renderer.domElement) : null;
+  if (ctl) { ctl.target.set(4, 0.4, 0); ctl.enableDamping = true; ctl.minDistance = 3; ctl.maxDistance = 25; ctl.update(); } else cam.lookAt(4, 0.4, 0);
+  sc.add(new THREE.HemisphereLight(0xbcd0ff, 0x151520, 0.9));
+  const grid = new THREE.GridHelper(16, 32, 0x253250, 0x161e30); grid.position.set(4, -1.6, 0); sc.add(grid);
+  // 1 unit = 5 mm. Domain x 0–40 mm -> 0–8 units; sheet width 20 mm -> 4 units (z −2..2); gas height 12 mm -> 2.4 units.
+  const NXs = 80, sheetTex = new THREE.DataTexture(new Uint8Array(NXs * 4), NXs, 1, THREE.RGBAFormat);
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), new THREE.MeshBasicMaterial({ map: sheetTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  sheet.rotation.x = -Math.PI / 2; sheet.position.set(4, 0, 0); sc.add(sheet);
+  const holderMat = new THREE.MeshBasicMaterial({ color: 0x3a4660 });
+  [-2.12, 2.12].forEach(z => { const b = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.08, 0.2), holderMat); b.position.set(4, 0, z); sc.add(b); });
+  // field slices
+  const fieldTex = new THREE.DataTexture(new Uint8Array(80 * 24 * 4), 80, 24, THREE.RGBAFormat);
+  fieldTex.magFilter = THREE.LinearFilter; fieldTex.minFilter = THREE.LinearFilter;
+  const slices = new THREE.Group(); const K = 13;
+  for (let k = 0; k < K; k++) {
+    const z = -1.8 + 3.6 * k / (K - 1);
+    [1, -1].forEach(sgn => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(8, 2.4), new THREE.MeshBasicMaterial({ map: fieldTex, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      m.position.set(4, sgn * 1.2, z); if (sgn < 0) m.scale.y = -1; slices.add(m);
+    });
+  }
+  sc.add(slices);
+  const pick = new THREE.Mesh(new THREE.PlaneGeometry(8, 4.8), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })); pick.position.set(4, 0, 0); sc.add(pick);
+  // fast-mode envelope (illustrative)
+  const envO = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), new THREE.MeshBasicMaterial({ color: 0x3f7bff, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const envI = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: .4, blending: THREE.AdditiveBlending, depthWrite: false }));
+  sc.add(envO, envI);
+  // flow tracers
+  const NS = 220, sp = new Float32Array(NS * 3), r0 = rng(7);
+  for (let i = 0; i < NS; i++) { sp[i * 3] = r0() * 10 - 1; sp[i * 3 + 1] = (r0() - .5) * 4.6; sp[i * 3 + 2] = (r0() - .5) * 4.4; }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+  const tracers = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0x9fb6e0, size: 0.05, transparent: true, opacity: .55 })); sc.add(tracers);
+  // labels
+  function label(text, x, y, z, size = .32, color = "#9fb0cc") {
+    const c = document.createElement("canvas"); c.width = 256; c.height = 64; const g = c.getContext("2d"); g.font = "500 30px 'IBM Plex Mono', monospace"; g.fillStyle = color; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 128, 32);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false })); s.scale.set(size * 4, size, 1); s.position.set(x, y, z); sc.add(s); return s;
+  }
+  [0, 10, 20, 30, 40].forEach(mm => { label(mm + " mm", mm / 5, -0.05, 2.8, .36); const t = new THREE.Mesh(new THREE.BoxGeometry(.02, .02, .25), holderMat); t.position.set(mm / 5, 0, 2.35); sc.add(t); });
+  label("← opposed flow", 7.2, 2.9, 0, .3, "#c9d4ea");
+  label("sheet, both faces burn", 1.6, -0.5, -2.7, .26);
+
+  let run = null, playing = false, last = performance.now();
+  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+  function paintSheet(m, Ts) {
+    const d = sheetTex.image.data;
+    for (let i = 0; i < NXs; i++) {
+      const mm = m ? m[i] : 1, heat = Ts ? Math.min(1, Math.max(0, (Ts[i] - 298) / 450)) : 0, o = i * 4;
+      if (mm <= 0) { d[o] = 40; d[o + 1] = 30; d[o + 2] = 30; d[o + 3] = 0; continue; }
+      d[o] = Math.round(170 + 85 * heat); d[o + 1] = Math.round(205 - 110 * heat); d[o + 2] = Math.round(225 - 190 * heat); d[o + 3] = Math.round(120 + 135 * Math.max(heat, 1 - mm));
+    }
+    sheetTex.needsUpdate = true;
+  }
+  function paintField(f, R) {
+    const d = fieldTex.image.data, src = S.field === "H" ? f.H : f.T;
+    let hmax = 1; if (S.field === "H") for (let k = 0; k < src.length; k++) hmax = Math.max(hmax, src[k]);
+    for (let k = 0; k < R.nx * R.ny; k++) {
+      const v = src[k], tn = S.field === "H" ? Math.sqrt(v / hmax) : (v - 500) / (TSCALE[1] - 500);
+      const c = inferno(.25 + .75 * Math.max(0, tn)), o = k * 4;
+      d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.round(255 * Math.min(1, Math.max(0, tn)) ** 1.8);
+    }
+    fieldTex.needsUpdate = true;
+  }
+  function setTime() {
+    if (!run) { slices.visible = envO.visible = envI.visible = false; paintSheet(null, null); return; }
+    if (run.mode === "detailed") {
+      const fr = frameOf(run); envO.visible = envI.visible = false;
+      if (!fr) { slices.visible = false; paintSheet(null, null); return; }
+      slices.visible = true; paintField(fr.f, fr.r); paintSheet(fr.f.m, fr.f.Ts);
+    } else {
+      slices.visible = false;
+      const o = run.outputs, ext = o.outcome !== "sustained spread", t = S.t * fastTmax(run), xf = Math.min(38, 3 + o.spread_mm_s * t);
+      const m = new Float32Array(NXs), Ts = new Float32Array(NXs);
+      for (let i = 0; i < NXs; i++) { const x = (i + .5) * .5; m[i] = x > 1 && x < 39 ? (x < xf - 2 ? 0 : 1) : 0; Ts[i] = x <= xf + 1 && x >= xf - 2 ? 700 : 298; }
+      if (ext) { m.fill(1); Ts.fill(298); for (let i = 0; i < 2; i++) m[i] = 0; }
+      paintSheet(m, Ts);
+      envO.visible = envI.visible = !ext;
+      const g = Math.min(40, Math.max(2, o.gas_length_mm)), Lf = Math.min(3, g / 5 * 1.6), Hf = Math.min(1.4, g / 5 * .6 + .15), xu = xf / 5;
+      envO.scale.set(Lf, Hf, 1.9); envO.position.set(xu - Lf * .8, 0, 0);
+      envI.scale.set(Lf * .55, Hf * .55, 1.5); envI.position.set(xu - Lf * .8, 0, 0);
+    }
+    const legend = $("#ov-tl");
+    legend.innerHTML = run.mode === "detailed" ? `<span class="badge ov-sim">Simulated</span><span>${run.model} v${run.version} · ${S.field === "H" ? "heat-release rate" : "gas temperature"} field, extruded across width</span>` : `<span class="badge ov-sim">Simulated</span><span>front position from ${run.model}</span><span class="badge ov-ill">Illustrative</span><span>flame shape</span>`;
+    $("#ov-bl").innerHTML = `<span class="badge ov-ill">Illustrative</span><span>flow tracers</span>`;
+    $("#ov-br").hidden = run.mode !== "detailed";
+  }
+  function update(rn) { run = rn; setTime(); }
+  function resize() { const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(host);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    if (playing && run) {
+      const dur = run.mode === "detailed" ? Math.max(4, (S.frames[run.id]?.front.at(-1).t || 10) / 2) : 8;
+      S.t += dt / dur; if (S.t >= 1) { S.t = 1; playing = false; $("#play").textContent = "Play"; }
+      $("#tslider").value = S.t * 1000; renderTimeDependentThrottled();
+    }
+    if (!reduce && run && S.tab === "simulate") {
+      const u = Math.min(6, Math.max(.15, (run.outputs.U_eff_m_s || .01) * 30)); const a = sg.attributes.position;
+      for (let i = 0; i < NS; i++) { let x = a.getX(i) - u * dt; if (x < -1) x += 10; a.setX(i, x); }
+      a.needsUpdate = true;
+    }
+    renderer.setClearColor(new THREE.Color(css("--scene") || "#070b13"));
+    if (S.tab === "simulate") { ctl && ctl.update(); renderer.render(sc, cam); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  renderer.domElement.addEventListener("pointermove", e => {
+    const rc = renderer.domElement.getBoundingClientRect(); mouse.set((e.clientX - rc.left) / rc.width * 2 - 1, -(e.clientY - rc.top) / rc.height * 2 + 1);
+    ray.setFromCamera(mouse, cam); const pr = $("#probe"); const fr = frameOf(run);
+    const hs = ray.intersectObject(sheet)[0], hp = ray.intersectObject(pick)[0];
+    if (fr && hp && (!hs || hp.distance < hs.distance)) {
+      const xmm = hp.point.x * 5, ymm = Math.abs(hp.point.y) * 5, i = Math.floor(xmm / .5), j = Math.floor(ymm / .5);
+      if (i >= 0 && i < fr.r.nx && j >= 0 && j < fr.r.ny) { const k = i + j * fr.r.nx; pr.hidden = false; pr.textContent = `gas at x ${xmm.toFixed(1)} mm, ${ymm.toFixed(1)} mm from sheet · T ${Math.round(fr.f.T[k])} K · HRR ${fmt(fr.f.H[k] / 1e6, 3)} MW/m³`; return; }
+    }
+    if (hs && run) {
+      const xmm = hs.point.x * 5, i = Math.min(79, Math.max(0, Math.floor(xmm / .5)));
+      pr.hidden = false;
+      pr.textContent = fr ? `sheet at x ${xmm.toFixed(1)} mm · Ts ${Math.round(fr.f.Ts[i])} K · fuel left ${Math.round(fr.f.m[i] * 100)}% · pyrolysis ${fmt(fr.f.md[i] * 1000, 3)} g/m²·s` : `sheet at x ${xmm.toFixed(1)} mm`;
+      return;
+    }
+    pr.hidden = true;
+  });
+  renderer.domElement.addEventListener("pointerleave", () => $("#probe").hidden = true);
+  $("#play").onclick = () => { playing = !playing; if (playing && S.t >= 1) S.t = 0; $("#play").textContent = playing ? "Pause" : "Play"; };
+  return { update, resize, setTime };
+}
+let rtdPending = false;
+function renderTimeDependentThrottled() { if (rtdPending) return; rtdPending = true; requestAnimationFrame(() => { rtdPending = false; renderTimeDependent(); renderFrontCursor(); }); }
+function renderFrontCursor() { if (S.run && S.run.mode === "detailed") renderFront(); }
+$("#tslider").oninput = e => { S.t = e.target.value / 1000; renderTimeDependentThrottled(); };
+document.querySelectorAll("#fieldseg button").forEach(b => b.onclick = () => { S.field = b.dataset.field; document.querySelectorAll("#fieldseg button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#cbar-lab").textContent = S.field === "H" ? "heat release (√ scale)" : "500–2700 K"; renderTimeDependent(); });
+{ const cb = $("#cbar"), g = cb.getContext("2d"); for (let i = 0; i < 180; i++) { g.fillStyle = `rgb(${inferno(.25 + .75 * i / 179)})`; g.fillRect(i, 0, 1, 10); } $("#cbar-lab").textContent = "500–2700 K"; }
+
+/* ============================================================
+   Compare
+   ============================================================ */
+const TOL = { gravity: [0.01, 0], o2: [0.5, 0], pressure: [0, .05], flow: [0.2, .1], thickness: [0, .1] };
+function allRuns() { return [S.fastRun, S.detRun, ...S.runs].filter(Boolean).filter((r, i, a) => a.findIndex(x => x.id === r.id) === i); }
+function renderCompare() {
+  const ts = $("#cmp-test"), rs = $("#cmp-run"); const tv = ts.value, rv = rs.value;
+  ts.innerHTML = TESTS.map(t => `<option value="${t.id}">${t.id} · ${t.kind === "limit" ? "extinction limit" : t.outcome}</option>`).join("");
+  const runs = allRuns();
+  rs.innerHTML = runs.map(r => `<option value="${r.id}">${r.model} · ${r.id} · O₂ ${r.inputs.o2}% · ${fmt(r.inputs.flow)} cm/s · ${fmt(r.inputs.thickness * 1000)} µm</option>`).join("") || "<option value=''>No runs yet</option>";
+  if (tv && TESTS.some(t => t.id === tv)) ts.value = tv; else if (S.baseline) ts.value = S.baseline;
+  if (S.cmpRun && runs.some(r => r.id === S.cmpRun)) rs.value = S.cmpRun; else if (rv && runs.some(r => r.id === rv)) rs.value = rv;
+  const t = TESTS.find(x => x.id === ts.value), r = runs.find(x => x.id === rs.value);
+  if (!t || !r) { $("#cmp-out").innerHTML = '<p class="muted">Run a scenario first, then pick a test.</p>'; return; }
+  const isLim = t.kind === "limit", det = r.mode === "detailed";
+  const rows = PARAMS.map(p => { const a = t[p.key], b = r.inputs[p.key]; const [abs, rel] = TOL[p.key]; const ok = (isLim && p.key === "flow") || Math.abs(a - b) <= Math.max(abs, rel * Math.abs(a)); return { p, a, b, ok }; });
+  const matched = rows.every(x => x.ok) && t.material === r.inputs.material;
+  const o = r.outputs, sigSim = det ? 0 : (o.p95 - o.p05) / 3.29;
+  const NOTE = "No acceptance threshold has been set by a domain expert, so this is not a validation result.";
+  let resid = "", verdict = "", outRows = "";
+  if (!matched) verdict = `<div class="callout">No residual shown. The conditions differ in ${rows.filter(x => !x.ok).map(x => x.p.label.toLowerCase()).join(", ")}, so the values are not comparable. Use a “Run … at this test” button to make a matched run.</div>`;
+  if (isLim) {
+    if (det) { outRows = `<tr><td>Outcome at ${fmt(r.inputs.flow)} cm/s</td><td class="num">${r.inputs.flow < t.crit - t.critUnc ? "extinction expected" : r.inputs.flow > t.crit + t.critUnc ? "spread expected" : "within the limit's uncertainty"}</td><td class="num">${o.outcome}</td><td class="small muted">one detailed run tests one flow; run several to bracket the limit</td></tr>`; }
+    else {
+      const cb = matched ? critFlowBand(r.inputs) : null;
+      outRows = `<tr><td>Critical opposed flow (cm/s)</td><td class="num">${t.crit} ± ${t.critUnc}</td><td class="num">${cb ? (cb.nom == null ? "none below 50" : `${fmt(cb.nom)} [${fmt(cb.p05)}–${fmt(cb.p95)}]`) : "—"}</td><td class="small muted">lowest flow with sustained spread, 90% band</td></tr>`;
+      if (cb && cb.nom != null) { const d = cb.nom - t.crit, z = d / Math.hypot(t.critUnc, ((cb.p95 ?? cb.nom) - (cb.p05 ?? cb.nom)) / 3.29); resid = `<tr><th>Residual (sim − test)</th><td class="num" colspan="2">${fmt(d)} cm/s · z = ${fmt(z, 2)}</td><td></td></tr>`; verdict = `<div class="callout ${Math.abs(z) > 2 ? "bad" : "info"}">${Math.abs(z) <= 2 ? "Model extinction flow is within combined uncertainty (|z| ≤ 2)." : "Model extinction flow is outside combined uncertainty (|z| > 2)."} ${NOTE}</div>`; }
+    }
+  } else {
+    outRows = `<tr><td>Outcome</td><td class="num">${t.outcome}</td><td class="num">${o.outcome}</td><td></td></tr>
+      <tr><td>Spread rate (mm/s)</td><td class="num">${t.spread != null ? `${t.spread} ± ${t.unc}` : "—"}</td><td class="num">${fmt(o.spread_mm_s)}${det ? "" : ` [${fmt(o.p05)}–${fmt(o.p95)}]`}</td><td class="small muted">${det ? "FFR-2D: single deterministic run, no band" : "model 90% band"}</td></tr>`;
+    if (matched && (t.spread == null || t.outcome !== "sustained spread" || o.outcome !== "sustained spread")) verdict = `<div class="callout info">Outcome comparison: test ${t.outcome}, model ${o.outcome}. ${t.outcome === o.outcome ? "They agree." : "They disagree."}</div>`;
+    else if (matched) { const d = o.spread_mm_s - t.spread, z = d / Math.hypot(t.unc, sigSim); resid = `<tr><th>Residual (sim − test)</th><td class="num" colspan="2">${fmt(d)} mm/s · ${fmt(100 * d / t.spread, 3)}% · z = ${fmt(z, 2)}</td><td></td></tr>`; verdict = `<div class="callout ${Math.abs(z) > 2 ? "bad" : "info"}">${Math.abs(z) <= 2 ? "Within combined uncertainty (|z| ≤ 2)." : "Outside combined uncertainty (|z| > 2)."} ${det ? "z uses only the test's uncertainty." : ""} ${NOTE}</div>`; }
+  }
+  $("#cmp-out").innerHTML = `
+    ${t.use === "calibration" && r.model === "FFR-1" && r.version !== "0.1.0" ? '<div class="callout">This record was used to calibrate FFR-1. Agreement here is by construction.</div>' : ""}
+    <div class="callout info">${esc(t.sample)} · ${esc(t.note)}</div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Condition</th><th class="num">Test ${t.id} ${BADGE[t.prov]}</th><th class="num">${r.model} ${BADGE.sim}</th><th>Tolerance</th></tr></thead>
+      <tbody>
+        <tr class="${t.material === r.inputs.material ? "" : "mismatch"}"><td>Material</td><td class="num">${t.material}</td><td class="num">${r.inputs.material}</td><td></td></tr>
+        ${rows.map(x => `<tr class="${x.ok ? "" : "mismatch"}"><td>${x.p.label} (${Object.keys(x.p.units)[0]})</td><td class="num">${isLim && x.p.key === "flow" ? "varied" : fmt(x.a, 4)}</td><td class="num">${fmt(x.b, 4)}</td><td class="small muted">${isLim && x.p.key === "flow" ? "searched by the model" : `${x.ok ? "match" : "<strong>differs</strong>"} · ±${TOL[x.p.key][0] || TOL[x.p.key][1] * 100 + "%"}`}</td></tr>`).join("")}
+      </tbody>
+      <thead><tr><th>Output</th><th class="num">Test</th><th class="num">Model</th><th></th></tr></thead>
+      <tbody>${outRows}${resid}</tbody>
+    </table></div>
+    ${verdict}
+    <p class="small muted">Source: <a href="${esc(t.source)}" target="_blank" rel="noopener">${esc(t.source === TM ? TM_REF : t.source)}</a>${t.cite ? ", " + esc(t.cite) : ""} · ${r.model} v${r.version}, run ${r.at}.</p>`;
+}
+$("#cmp-test").onchange = renderCompare;
+$("#cmp-run").onchange = () => { S.cmpRun = $("#cmp-run").value; renderCompare(); };
+$("#cmp-match").onclick = () => { setModel("fast"); setBaseline($("#cmp-test").value); const r = doFast(true); S.cmpRun = r.id; renderCompare(); };
+$("#cmp-match-det").onclick = async () => {
+  const t = TESTS.find(x => x.id === $("#cmp-test").value); const inp = { gravity: t.gravity, o2: t.o2, pressure: t.pressure, flow: t.kind === "limit" ? t.crit : t.flow, thickness: t.thickness };
+  const pr = detProblems(inp); if (pr.length) { toast(pr[0]); return; }
+  setBaseline(t.id); setModel("detailed"); setTab("simulate"); const r = await runDetailed(); if (r) { S.cmpRun = r.id; toast("Detailed run finished. Open Compare to see it against the test."); }
+};
+
+/* validation */
+function residual(t, base) {
+  const inp = { gravity: t.gravity, o2: t.o2, pressure: t.pressure, flow: t.flow, thickness: t.thickness };
+  if (t.kind === "limit") {
+    const c = critFlowBand(inp, base); if (c.nom == null) return { pred: "none ≤ 50 cm/s", z: null };
+    const sig = Math.hypot(t.critUnc, ((c.p95 ?? c.nom) - (c.p05 ?? c.nom)) / 3.29);
+    return { pred: `${fmt(c.nom)} cm/s`, v: c.nom, lo: c.p05, hi: c.p95, d: c.nom - t.crit, z: (c.nom - t.crit) / sig };
+  }
+  const m = runModel(inp, 300, base);
+  if (t.spread == null) return { pred: m.nom.outcome, agree: m.nom.outcome === t.outcome };
+  const sig = Math.hypot(t.unc, (m.p95 - m.p05) / 3.29);
+  return { pred: `${fmt(m.Vmm)} mm/s`, v: m.Vmm, lo: m.p05, hi: m.p95, d: m.Vmm - t.spread, z: (m.Vmm - t.spread) / sig };
+}
+let VAL = null;
+function renderValidation() {
+  if (!VAL) VAL = TESTS.filter(t => !t.imported).map(t => ({ t, before: residual(t, PRIOR), after: residual(t, NOMINAL) }));
+  const cell = r => r.z != null ? `<td class="num">${r.pred}</td><td class="num">${r.d >= 0 ? "+" : ""}${fmt(r.d)}</td><td class="num" style="color:var(${Math.abs(r.z) > 2 ? "--bad" : "--good"})">${fmt(r.z, 2)}</td>`
+    : `<td class="num">${esc(r.pred)}</td><td class="num">—</td><td class="num" style="color:var(${r.agree === false ? "--bad" : r.agree ? "--good" : "--muted"})">${r.agree == null ? "—" : r.agree ? "agrees" : "disagrees"}</td>`;
+  const val = VAL.filter(v => v.t.use === "validation" && v.before.z != null && v.after.z != null);
+  const rms = k => Math.sqrt(val.reduce((s, v) => s + v[k].z ** 2, 0) / val.length), inb = k => val.filter(v => Math.abs(v[k].z) <= 2).length;
+  // detailed runs that match a test
+  const near = (t, r) => PARAMS.every(p => Math.abs(t[p.key] - r.inputs[p.key]) <= Math.max(TOL[p.key][0], TOL[p.key][1] * Math.abs(t[p.key])));
+  const detFor = t => S.runs.find(r => r.mode === "detailed" && !r.nonDefault && near(t, r) && r.outputs.outcome === "sustained spread");
+  // parity: spread
+  const sp = VAL.filter(v => v.t.kind === "spread" && v.t.spread != null);
+  const smax = Math.max(3, ...sp.map(v => Math.max(v.t.spread + v.t.unc, v.after.hi || 0, v.before.hi || 0, detFor(v.t)?.outputs.spread_mm_s || 0))) * 1.1;
+  const pts = [];
+  sp.forEach(v => { pts.push({ x: v.t.spread, y: v.before.v, ex: v.t.unc, ey0: v.before.lo, ey1: v.before.hi, color: "var(--faint)", title: `${v.t.id} v0.1.0` });
+    pts.push({ x: v.t.spread, y: v.after.v, ex: v.t.unc, ey0: v.after.lo, ey1: v.after.hi, color: v.t.use === "calibration" ? "var(--muted)" : "var(--sim)", fill: v.t.use === "calibration" ? "var(--panel)" : "var(--sim)", title: `${v.t.id} v0.2.0`, label: v.t.id + (v.t.use === "calibration" ? " (cal.)" : "") });
+    const d = detFor(v.t); if (d) pts.push({ x: v.t.spread, y: d.outputs.spread_mm_s, color: "var(--ill)", shape: "diamond", title: `${v.t.id} FFR-2D` }); });
+  $("#parity-v").innerHTML = `<h4>Spread rate · predicted vs reported</h4>` + chart({ w: 420, h: 300, x: [0, smax], y: [0, smax], xLabel: "reported (mm/s)", yLabel: "predicted (mm/s)", series: [{ pts: [[0, 0], [smax, smax]], color: "var(--line-strong)", w: 1, dash: "4 3" }], points: pts,
+    legend: [{ label: "FFR-1 v0.1", color: "var(--faint)" }, { label: "v0.2", color: "var(--sim)" }, { label: "FFR-2D", color: "var(--ill)" }], aria: "Parity plot for spread rate" });
+  const lim = VAL.filter(v => v.t.kind === "limit");
+  const cmax = Math.max(5, ...lim.map(v => Math.max(v.t.crit + v.t.critUnc, v.after.hi || 0, v.before.hi || 0))) * 1.1;
+  const lp = []; lim.forEach(v => { if (v.before.v != null) lp.push({ x: v.t.crit, y: v.before.v, ex: v.t.critUnc, ey0: v.before.lo, ey1: v.before.hi, color: "var(--faint)", title: `${v.t.id} v0.1.0` }); if (v.after.v != null) lp.push({ x: v.t.crit, y: v.after.v, ex: v.t.critUnc, ey0: v.after.lo, ey1: v.after.hi, color: "var(--sim)", fill: "var(--sim)", title: `${v.t.id} v0.2.0`, label: v.t.id }); });
+  $("#parity-c").innerHTML = `<h4>Extinction flow · predicted vs reported</h4>` + chart({ w: 420, h: 300, x: [0, cmax], y: [0, cmax], xLabel: "reported (cm/s)", yLabel: "predicted (cm/s)", series: [{ pts: [[0, 0], [cmax, cmax]], color: "var(--line-strong)", w: 1, dash: "4 3" }], points: lp,
+    legend: [{ label: "FFR-1 v0.1", color: "var(--faint)" }, { label: "v0.2", color: "var(--sim)" }], aria: "Parity plot for extinction flow" });
+  $("#val-out").innerHTML = `
+    <p class="small">FFR-1 v0.2.0 changes one parameter: the flame-temperature coefficient goes from <span class="mono">${fmt(CAL.prior, 4)}</span> K to <span class="mono">${fmt(CAL.value, 4)}</span> K ± ${fmt(CAL.sigmaRel * 100, 2)}%, fitted to <span class="mono">${CAL.records.join(", ")}</span> only. Flame temperature in air rises from ${fmt(CAL.TfAirPrior, 4)} K to ${fmt(CAL.TfAir, 4)} K. FFR-2D is not calibrated; its points appear once you run it at a test's conditions with default assumptions.</p>
+    <div class="kpis">
+      <div class="kpi"><span class="label">Validation RMS z</span><span class="v">${fmt(rms("before"), 2)} → ${fmt(rms("after"), 2)}</span><span class="u">${val.length} BASS-II records, FFR-1</span></div>
+      <div class="kpi"><span class="label">Within |z| ≤ 2</span><span class="v">${inb("before")} → ${inb("after")}</span><span class="u">of ${val.length} validation records</span></div>
+    </div>
+    <details><summary>Show the residual table</summary><div class="tablewrap"><table>
+      <thead><tr><th rowspan="2">Record</th><th rowspan="2">Role</th><th rowspan="2" class="num">Reported</th><th colspan="3" class="num">FFR-1 v0.1.0 · prior</th><th colspan="3" class="num">FFR-1 v0.2.0 · calibrated</th><th rowspan="2" class="num">FFR-2D</th></tr>
+      <tr><th class="num">Model</th><th class="num">Residual</th><th class="num">z</th><th class="num">Model</th><th class="num">Residual</th><th class="num">z</th></tr></thead>
+      <tbody>${VAL.map(v => { const d = detFor(v.t); return `<tr><td class="mono">${v.t.id}</td><td><span class="badge ${v.t.use === "calibration" ? "b-plain" : "b-pub"}">${v.t.use === "calibration" ? "Calibration" : "Validation"}</span></td><td class="num">${testResult(v.t)}</td>${cell(v.before)}${cell(v.after)}<td class="num">${d ? fmt(d.outputs.spread_mm_s) + " mm/s" : "—"}</td></tr>`; }).join("")}</tbody>
+    </table></div></details>
+    <p class="small muted">z = residual ÷ combined σ of reported uncertainty and model band. Pass/fail needs an acceptance threshold set by a combustion expert.</p>`;
+}
+
+function renderRuns() {
+  $("#runs").innerHTML = S.runs.length ? S.runs.map(r => `<div class="row spread" style="border-bottom:1px solid var(--line);padding-bottom:6px"><span><span class="badge b-plain">${r.model}</span> <span class="mono">${r.id}</span> · O₂ ${r.inputs.o2}% · ${fmt(r.inputs.flow)} cm/s · ${fmt(r.inputs.gravity)} g₀ · ${fmt(r.outputs.spread_mm_s)} mm/s ${r.exploratory.length ? '<span class="badge b-warn">Exploratory</span>' : ""}</span><span class="row"><button data-copy="${r.id}">Copy JSON</button><button data-del="${r.id}">Remove</button></span></div>`).join("") : '<p class="muted">Saved runs appear here. They stay in this browser only.</p>';
+  $("#runs").querySelectorAll("[data-del]").forEach(b => b.onclick = () => { S.runs = S.runs.filter(x => x.id !== b.dataset.del); save("fif.runs2", S.runs); renderRuns(); renderCompare(); });
+  $("#runs").querySelectorAll("[data-copy]").forEach(b => b.onclick = () => { const r = S.runs.find(x => x.id === b.dataset.copy); const txt = JSON.stringify(r, null, 2); try { navigator.clipboard.writeText(txt).then(() => toast("Run record copied"), () => toast("Clipboard blocked by this browser")); } catch { toast("Clipboard blocked by this browser"); } });
+}
+
+$("#csv-import").onclick = () => {
+  const lines = $("#csv").value.trim().split(/\r?\n/).filter(Boolean), msg = $("#csv-msg");
+  if (lines.length < 2) { msg.textContent = "Add at least one data row under the header."; msg.style.color = "var(--bad)"; return; }
+  const head = lines[0].split(",").map(s => s.trim());
+  const need = ["test_id", "study", "material", "thickness_mm", "o2_pct", "pressure_kPa", "flow_cm_s", "gravity_g0", "spread_mm_s", "spread_unc_mm_s", "outcome", "provenance", "source_url"];
+  const miss = need.filter(n => !head.includes(n));
+  if (miss.length) { msg.textContent = "Header is missing: " + miss.join(", "); msg.style.color = "var(--bad)"; return; }
+  const errs = [], added = [];
+  lines.slice(1).forEach((ln, i) => {
+    const c = ln.split(",").map(s => s.trim()), g = k => c[head.indexOf(k)];
+    const num = k => { const v = Number(g(k)); if (g(k) === "" || !isFinite(v)) { errs.push(`row ${i + 2}: ${k} “${g(k)}” is not a number`); return null; } return v; };
+    const row = { id: g("test_id"), study: g("study"), material: g("material"), thickness: num("thickness_mm"), o2: num("o2_pct"), pressure: num("pressure_kPa"), flow: num("flow_cm_s"), gravity: num("gravity_g0"), spread: num("spread_mm_s"), unc: num("spread_unc_mm_s"), outcome: g("outcome"), prov: g("provenance") === "observed" ? "obs" : g("provenance") === "published" ? "pub" : null, source: g("source_url"), kind: "spread", sample: g("test_id"), cite: "", note: "Imported by a curator in this browser.", imported: true, use: "validation" };
+    if (!row.prov) errs.push(`row ${i + 2}: provenance must be observed or published`);
+    if (!/^https?:\/\//.test(row.source || "")) errs.push(`row ${i + 2}: source_url must be an http(s) link`);
+    if (!["sustained spread", "extinction"].includes(row.outcome)) errs.push(`row ${i + 2}: outcome must be "sustained spread" or "extinction"`);
+    if (TESTS.some(t => t.id === row.id)) errs.push(`row ${i + 2}: test_id ${row.id} already exists`);
+    if (!errs.some(e => e.startsWith(`row ${i + 2}:`))) added.push(row);
+  });
+  if (errs.length) { msg.textContent = errs.slice(0, 4).join("; ") + (errs.length > 4 ? ` (+${errs.length - 4} more)` : "") + ". Nothing was imported."; msg.style.color = "var(--bad)"; return; }
+  TESTS = TESTS.concat(added); save("fif.tests", TESTS.filter(t => t.imported));
+  msg.textContent = `Imported ${added.length} test${added.length > 1 ? "s" : ""}.`; msg.style.color = "var(--good)";
+  renderCompare(); renderDetail(); renderSweep(); renderBaselineSelect();
+};
+
+/* ============================================================
+   Physics tab
+   ============================================================ */
+function renderPhysics() { renderBudgets(); renderRegime(); renderPTable(); }
+function hbars(items, unit, aria) {
+  const W = 600, rowH = 30, L = 210, R = 90, H = items.length * rowH + 30;
+  const max = Math.max(...items.map(i => Math.abs(i.v)), 1e-9);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">`;
+  items.forEach((it, k) => { const y = 8 + k * rowH, w = (W - L - R) * Math.abs(it.v) / max;
+    s += `<text x="${L - 8}" y="${y + 15}" text-anchor="end" class="title">${esc(it.label)}</text><rect x="${L}" y="${y + 3}" width="${Math.max(1, w)}" height="16" rx="2" fill="${it.color}"/><text x="${L + w + 6}" y="${y + 15}">${fmt(it.v, 3)} ${unit}</text>`; });
+  return s + `<text x="${L}" y="${H - 4}">${esc(unit)}</text></svg>`;
+}
+function renderBudgets() {
+  const f = S.fastRun;
+  if (f) {
+    const o = f.outputs;
+    $("#budget-fast").innerHTML = hbars([{ label: "heat conducted to fuel", v: o.q_conv / 1000, color: "var(--sim)" }, { label: "surface re-radiation", v: o.q_rad / 1000, color: "var(--bad)" }], "kW/m²", "Heat feedback versus loss")
+      + `<div class="kpis"><div class="kpi"><span class="label">Loss ratio χ</span><span class="v" style="color:var(${o.radiative_loss_ratio >= 1 ? "--bad" : "--fg"})">${fmt(o.radiative_loss_ratio)}</span><span class="u">quench at ≥ 1</span></div><div class="kpi"><span class="label">Damköhler Da</span><span class="v" style="color:var(${o.Damkohler <= 1 ? "--bad" : "--fg"})">${fmt(o.Damkohler)}</span><span class="u">blowoff at ≤ 1</span></div><div class="kpi"><span class="label">Regime</span><span class="v" style="font-size:16px">${esc(o.regime)}</span><span class="u">${fmt(S.inputs.thickness * 1000)} µm sheet</span></div></div>`;
+  }
+  const fr = frameOf(S.detRun);
+  if (!fr) { $("#budget-det").innerHTML = `<div class="empty">Run the detailed solver on the Simulate tab to see where the computed flame's energy goes.</div>`; return; }
+  const b = fr.f.budget;
+  $("#budget-det").innerHTML = `<p class="small muted">At t = ${fr.f.t.toFixed(1)} s of run ${S.detRun.id}.</p>` + hbars([
+    { label: "chemical heat release", v: b.hrr, color: "var(--ill)" }, { label: "gas radiation loss", v: b.gasRad, color: "var(--bad)" },
+    { label: "conducted into the sheet", v: b.toSolid, color: "var(--sim)" }, { label: "sheet re-radiation", v: b.solidRad, color: "var(--pub)" },
+    { label: "spent vaporizing fuel", v: b.pyro, color: "var(--obs)" }], "W/m", "Energy budget of the computed flame")
+    + `<p class="small muted">Gas radiation is ${fmt(100 * b.gasRad / Math.max(b.hrr, 1e-9), 3)}% of the heat release. The rest leaves mostly by convection with the flow. Only ${fmt(100 * b.toSolid / Math.max(b.hrr, 1e-9), 3)}% returns to the sheet, and that small fraction drives the spread.</p>`;
+}
+function renderRegime() {
+  const N = 80, xs = Array.from({ length: N }, (_, i) => 0.3 * Math.pow(100 / 0.3, i / (N - 1)));
+  const sol = xs.map(x => ({ x, o: solve({ ...S.inputs, flow: x }, NOMINAL) }));
+  const regions = []; let cur = null;
+  sol.forEach((p, i) => { const o = p.o; const k = o.outcome === "extinction" ? (o.fk === 0 ? "kin" : "rad") : (o.fr < .9 && (1 - o.fr) > (1 - o.fk)) ? "rad" : o.fk < .9 ? "kin" : "th";
+    const x0 = i ? Math.sqrt(xs[i - 1] * p.x) : 0.3; if (!cur || cur.k !== k) { if (cur) cur.x1 = x0; cur = { k, x0 }; regions.push(cur); } });
+  cur.x1 = 100;
+  const col = { rad: "var(--bad)", kin: "var(--warn)", th: "var(--good)" }, lab = { rad: "radiative", kin: "kinetic", th: "thermal" };
+  const ymax = Math.max(.1, ...sol.map(p => p.o.V0 * 1000)) * 1.1;
+  $("#regime").innerHTML = chart({ w: 1000, h: 300, x: [0.3, 100], xLog: true, y: [0, ymax], xLabel: "opposed flow (cm/s)", yLabel: "spread rate (mm/s)", aria: "Spread regimes",
+    regions: regions.map(r => ({ x0: r.x0, x1: r.x1, color: col[r.k], op: .1, label: lab[r.k] })),
+    series: [{ pts: sol.map(p => [p.x, p.o.V0 * 1000]), color: "var(--faint)", dash: "4 3", w: 1.5 }, { pts: sol.map(p => [p.x, p.o.V * 1000]), color: "var(--sim)" }],
+    vlines: [{ x: Math.max(.3, S.inputs.flow), color: "var(--accent)", label: "current", op: .8 }],
+    points: TESTS.filter(t => t.kind === "limit" && Math.abs(t.o2 - S.inputs.o2) < 1).map(t => ({ x: t.crit, y: 0.04 * ymax, ex: t.critUnc, color: "var(--pub)", title: t.id, label: t.id })),
+    legend: [{ label: "with losses", color: "var(--sim)" }, { label: "no losses (de Ris limit)", color: "var(--faint)", dash: "4 3" }] });
+}
+function renderPTable() {
+  const rows = [
+    ["FFR-1", "Flame-temperature coefficient k_Tf", fmt(CAL.value, 4) + " K", "Calibrated on SDSU-1G-100 (prior 7600)"],
+    ["FFR-1", "Gas conductivity λg", "0.05 W/m·K", "Assumed, ±15%"], ["FFR-1", "Pyrolysis temperature Tv", "660 K", "Assumed, ±20 K"],
+    ["FFR-1", "Activation temperature Ta", "15000 K", "Assumed, ±10%"], ["FFR-1", "Pre-exponential A", "1.23×10⁸", "Set so blowoff in air ≈ 1.5 m/s; ×/÷1.65"],
+    ["Both", "PMMA density, heat capacity", "1190 kg/m³, 1466 J/kg·K", "Handbook values"], ["Both", "Surface emissivity ε", "0.9", "Assumed (FFR-1 samples 0.80–0.95)"],
+    ["FFR-2D", "Heat of combustion Q", "25.9 MJ/kg", "PMMA, literature"], ["FFR-2D", "Stoichiometric O₂/fuel s", "1.92", "C₅H₈O₂ stoichiometry"],
+    ["FFR-2D", "Gas kinetics B, Ta", "5×10⁷ m³/kg·s, 15100 K", "Assumed one-step"], ["FFR-2D", "Pyrolysis As, Es/R", "2.82×10⁹ s⁻¹, 15610 K", "PMMA, literature"],
+    ["FFR-2D", "Heat of gasification Lv", "1.0 MJ/kg", "Assumed"], ["FFR-2D", "Gas diffusivity α, density ρ", "1.6×10⁻⁴ m²/s, 0.35 kg/m³ at 1 atm", "Evaluated near 1000 K"],
+    ["FFR-2D", "Mean heat capacity cp", `${S.dset.cp} J/kg·K`, S.dset.cp === DSET0.cp ? "Assumed: mean over 300–2400 K" : "User-set (non-default)"],
+    ["FFR-2D", "Gas absorption κ", `${S.dset.kap} m⁻¹·atm⁻¹`, S.dset.kap === DSET0.kap ? "Assumed: mid-range for CO₂/H₂O products" : "User-set (non-default)"]];
+  $("#ptable").innerHTML = `<table><thead><tr><th>Model</th><th>Parameter</th><th class="num">Value</th><th>Status</th></tr></thead><tbody>${rows.map(r => `<tr><td><span class="badge b-plain">${r[0]}</span></td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="small">${r[3]}</td></tr>`).join("")}</tbody></table>`;
+}
+
+/* ============================================================
+   Ask
+   ============================================================ */
+const SUGGEST = ["Why does the flame go out at low flow?", "How does oxygen affect spread rate?", "What does the detailed solver compute?", "Is PMMA safe for spacecraft?", "What did BASS-II measure for flame spread rate?"];
+$("#ask-suggest").innerHTML = SUGGEST.map(s => `<button type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("");
+$("#ask-suggest").querySelectorAll("button").forEach(b => b.onclick = () => { $("#ask-q").value = b.dataset.q; ask(b.dataset.q); });
+$("#ask-form").onsubmit = e => { e.preventDefault(); ask($("#ask-q").value); };
+function ask(q) {
+  const qt = tokens(q), out = $("#ask-out");
+  if (!qt.length) { out.innerHTML = '<p class="muted">Type a question with at least one specific word.</p>'; return; }
+  const scored = CORPUS.map(c => { const tt = tokens(c.title + " " + c.text); let s = 0; qt.forEach(w => { const n = tt.filter(x => x.startsWith(w.slice(0, 5))).length; if (n) s += 1 + Math.log(n); }); return { c, s: s / qt.length }; }).sort((a, b) => b.s - a.s);
+  const top = scored.filter(x => x.s >= .34).slice(0, 3);
+  let gap = "";
+  if (/measur|observ|data|value|record/i.test(q) && /bass|nasa|experiment|test/i.test(q)) { ["c12", "c11"].forEach(id => { const c = CORPUS.find(x => x.id === id); if (!top.some(t => t.c === c)) top.unshift({ c, s: 1 }); }); top.splice(3); gap = "Only values stated in the BASS-II Summary Report text are curated here: thin PMMA sheets at about 21% and 16% O₂. The full test matrix and raw frame data from NASA PSI have not been ingested."; }
+  if (/safe|hazard|danger|certif/i.test(q)) { const b = CORPUS.find(c => c.id === "c9"); if (!top.some(t => t.c === b)) top.unshift({ c: b, s: 1 }); gap = "This tool can't answer safety or certification questions. It can show how modeled spread changes with conditions."; }
+  if (!top.length) { out.innerHTML = `<p style="font-weight:600">${esc(q)}</p><div class="callout">The indexed sources don't cover this. They include the BASS-II records, the model notes, and the product boundaries. Try asking about flow, oxygen, gravity, extinction, the solvers, or model limits.</div>`; return; }
+  const sentences = top.map((t, i) => { const ss = t.c.text.split(/(?<=\.)\s+/); const best = ss.map(s => ({ s, k: qt.filter(w => s.toLowerCase().includes(w.slice(0, 5))).length })).sort((a, b) => b.k - a.k).slice(0, 2).map(x => x.s); return { i: i + 1, t, best }; });
+  out.innerHTML = `<div class="answer"><p style="font-weight:600">${esc(q)}</p>${gap ? `<div class="callout">${esc(gap)}</div>` : ""}
+    <ol>${sentences.map(x => x.best.map(s => `<li>${esc(s)} <span class="cite">[${x.i}]</span></li>`).join("")).join("")}</ol>
+    <div class="stack small" style="gap:4px"><span class="label">Sources</span>${sentences.map(x => `<div>[${x.i}] ${BADGE[x.t.c.prov]} ${x.t.c.url ? `<a href="${x.t.c.url}" target="_blank" rel="noopener">${esc(x.t.c.title)}</a>` : esc(x.t.c.title)}</div>`).join("")}</div>
+    <p class="small muted">Statements are quoted from the sources above, not generated.</p></div>`;
+}
+
+/* ============================================================
+   Guided demo
+   ============================================================ */
+const STEPS = [
+  () => { setTab("library"); $("#q").value = "BASS-II"; S.study = "PSI-25"; renderLibrary(); },
+  () => { setTab("library"); $("#q").value = ""; S.study = "PSI-25"; renderLibrary(); requestAnimationFrame(() => $("#lib-tests")?.scrollIntoView({ behavior: "smooth", block: "start" })); },
+  async () => { setTab("simulate"); setModel("detailed"); setBaseline("B03-SPREAD"); await runDetailed(); },
+  async () => { setTab("simulate"); setModel("detailed"); S.inputs.flow = 0.8; renderParams(); onInput(); await runDetailed(); },
+  () => { setTab("compare"); if (S.detRun) S.cmpRun = S.detRun.id; renderCompare(); $("#cmp-test").value = "XV-21-THIN"; renderCompare(); },
+  () => setTab("physics"),
+  () => { setTab("ask"); $("#ask-q").value = SUGGEST[0]; ask(SUGGEST[0]); }
+];
+document.querySelectorAll("#demo button").forEach(b => b.onclick = async () => { if (S.worker) { toast("A detailed run is in progress"); return; } b.classList.add("done"); await STEPS[+b.dataset.step](); });
+
+/* ============================================================
+   Boot
+   ============================================================ */
+renderLibrary();
+renderBaselineSelect();
+renderDset();
+S.baseline = "B03-SPREAD"; Object.assign(S.inputs, { gravity: 0, o2: 20.7, pressure: 99.3, flow: 3, thickness: 0.1 });
+renderParams(); $("#baseline").value = "B03-SPREAD";
+scene = initScene();
+setModel("fast");
+renderRuns();
+const h0 = (location.hash || "").slice(1);
+setTab(TABS.includes(h0) ? h0 : h0 === "scenario" ? "simulate" : "library");
+</script>

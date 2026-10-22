@@ -1,0 +1,68 @@
+:root {
+  --bg: #f6f7f9; --panel: #fff; --line: #dde1e7; --fg: #15191f; --muted: #5d6673;
+  --accent: #2459d1; --sim: #2459d1; --pub: #7a47c2; --bad: #c0352a; --good: #11815f;
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px; line-height: 1.5;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0e1117; --panel: #161b23; --line: #2a313c; --fg: #e5e9ef; --muted: #98a2b0;
+    --accent: #7aa2ff; --sim: #7aa2ff; --pub: #b896f2; --bad: #ff7468; --good: #45c99d; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); }
+h1, h2, h3 { margin: 0; line-height: 1.2; }
+h1 { font-size: 20px; } h2 { font-size: 17px; } h3 { font-size: 14px; }
+p { margin: 0; }
+a { color: var(--accent); }
+.mono { font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+
+header { background: var(--panel); border-bottom: 1px solid var(--line); }
+header .inner, main { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+header .inner { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; min-height: 52px; }
+nav { display: flex; gap: 4px; }
+nav button { border: none; background: none; padding: 16px 10px 13px; border-bottom: 3px solid transparent; border-radius: 0; color: var(--muted); }
+nav button.on { color: var(--fg); border-bottom-color: var(--accent); }
+main { padding-block: 20px 48px; display: flex; flex-direction: column; gap: 16px; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cols { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .cols, .two { grid-template-columns: minmax(0, 1fr); } }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+button, input, select { font: inherit; color: inherit; }
+button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+input, select { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+label.field { display: grid; grid-template-columns: 1fr 90px; gap: 2px 8px; align-items: center; }
+label.field .hint { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.stat { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.stat .v { font-size: 20px; font-family: ui-monospace, Consolas, monospace; }
+.stat .k { font-size: 12px; color: var(--muted); }
+
+.tag { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+.tag.sim { color: var(--sim); } .tag.pub { color: var(--pub); } .tag.bad { color: var(--bad); } .tag.good { color: var(--good); }
+.note { font-size: 13px; color: var(--muted); }
+.error { color: var(--bad); font-size: 13px; }
+.warn { font-size: 13px; border-left: 3px solid var(--bad); padding: 4px 10px; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); }
+td.n, th.n { text-align: right; font-family: ui-monospace, Consolas, monospace; }
+.scroll { overflow-x: auto; }
+
+.scene { position: relative; aspect-ratio: 16 / 8; background: #0b0f17; border-radius: 6px; overflow: hidden; }
+.scene canvas { display: block; width: 100%; height: 100%; }
+.scene .cap { position: absolute; left: 8px; top: 6px; font-size: 12px; color: #c7d0df; pointer-events: none; }
+.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--accent); }
+svg text { fill: var(--muted); font-size: 11px; font-family: ui-monospace, Consolas, monospace; }
+canvas.plot { width: 100%; height: auto; display: block; }
